@@ -78,3 +78,22 @@ def test_taiko_relax(load_fixture):
     full_combo = calculate_pp(attributes, TaikoJudgements(n_great=987, n_ok=0, n_meh=0, n_miss=0),
                                overall_difficulty=beatmap.overall_difficulty)
     assert full_combo["total"] == pytest.approx(703.7161731015071, rel=1e-9)
+
+
+def test_taiko_drumrolls_do_not_crash_colour_ratio_penalty(load_fixture):
+    """Regression test for a real crash found on ~60% of real-world taiko maps:
+    colour.py's consistent-ratio-penalty backward search walks the raw
+    (unfiltered) object chain and can land on a drumroll/swell, which never
+    had `rhythm_data` assigned (previously only computed for hit objects).
+    Fixed by splitting ratio assignment (all objects, matching the reference's
+    per-object Ratio computed at construction time) from rhythm/pattern
+    grouping (hit objects only) in rhythm.py -- see assign_ratios().
+    """
+    beatmap = parse_osu_file(load_fixture("taiko_drumroll_edge_case.osu"))
+    attributes = calculate(beatmap)
+
+    assert attributes.star_rating == pytest.approx(0.7746140919529283, rel=1e-9)
+
+    result = calculate_pp(attributes, TaikoJudgements(n_great=8, n_ok=0, n_meh=0, n_miss=0),
+                           overall_difficulty=beatmap.overall_difficulty)
+    assert result["total"] == pytest.approx(4.644102321533991, rel=1e-9)

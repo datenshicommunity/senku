@@ -306,7 +306,14 @@ def _calculate_total_value(snap_difficulty: float, agility_difficulty: float, fl
                             touch_device: bool = False, relax: bool = False) -> float:
     combined_snap_difficulty = norm(_COMBINED_SNAP_NORM_EXPONENT, snap_difficulty, agility_difficulty)
 
-    p_snap = _calculate_snap_flow_probability(flow_difficulty / combined_snap_difficulty)
+    # C# double division by exact zero silently yields Infinity/NaN; Python raises.
+    # Replicate IEEE754 semantics rather than crashing (both branches already
+    # handled correctly downstream by _calculate_snap_flow_probability).
+    if combined_snap_difficulty == 0:
+        ratio = math.inf if flow_difficulty > 0 else (math.nan if flow_difficulty == 0 else -math.inf)
+    else:
+        ratio = flow_difficulty / combined_snap_difficulty
+    p_snap = _calculate_snap_flow_probability(ratio)
     p_flow = 1 - p_snap
 
     if touch_device:

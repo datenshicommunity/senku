@@ -144,3 +144,23 @@ def test_osu_difficulty_adjust(load_fixture):
 
     assert attributes_ext.star_rating == pytest.approx(5.341830022896172, rel=1e-9)
     assert pp_ext == pytest.approx(325.0637198380129, rel=1e-9)
+
+
+def test_osu_aim_total_value_zero_division():
+    """Regression test for a real crash found on real-world std maps: when both
+    snap and agility difficulty are 0 (e.g. very early objects, or unusual
+    spacing), `combined_snap_difficulty` is exactly 0 and
+    `flow_difficulty / combined_snap_difficulty` raised ZeroDivisionError in
+    Python where C# double division silently yields Infinity/NaN. Fixed by
+    replicating IEEE754 semantics (same pattern as _miss_penalty).
+    """
+    from senku.osu.aim import _calculate_total_value
+
+    # 0/0 -> NaN -> _calculate_snap_flow_probability returns 1.0 (p_snap=1, p_flow=0);
+    # combined_snap_difficulty is also 0, so total_difficulty = 0*1 + 0*0 = 0.
+    assert _calculate_total_value(0.0, 0.0, 0.0) == pytest.approx(0.0, abs=1e-12)
+    # positive/0 -> +Infinity -> _calculate_snap_flow_probability returns 1.0 (p_snap=1,
+    # p_flow=0), so the nonzero flow_difficulty gets weighted by p_flow=0 -> still 0.
+    # The point of this case isn't the *value* (0 either way) -- it's that it
+    # doesn't raise ZeroDivisionError.
+    assert _calculate_total_value(0.0, 0.0, 5.0) == pytest.approx(0.0, abs=1e-12)

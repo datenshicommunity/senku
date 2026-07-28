@@ -149,8 +149,14 @@ def _group_by_interval(objects: list) -> list[list]:
     return groups
 
 
-def process_and_assign(note_objects: list[TaikoDifficultyHitObject]) -> None:
-    for obj in note_objects:
+def assign_ratios(all_objects: list[TaikoDifficultyHitObject]) -> None:
+    """Ratio is computed for EVERY object -- including drumroll/swell, which
+    have no rhythm/pattern grouping but still get walked over (and their
+    ratio read) by colour.py's consistent-ratio-penalty backward search.
+    Matches the reference: TaikoDifficultyHitObject's constructor computes
+    Ratio unconditionally for all objects, independently of (and before)
+    the hit-only grouping pass below."""
+    for obj in all_objects:
         previous = obj.previous(0)
         if previous is None:
             ratio = 1.0
@@ -159,6 +165,10 @@ def process_and_assign(note_objects: list[TaikoDifficultyHitObject]) -> None:
             ratio = _closest_common_ratio(actual_ratio)
         obj.rhythm_data = RhythmData(ratio)
 
+
+def process_and_assign(note_objects: list[TaikoDifficultyHitObject]) -> None:
+    """Same-rhythm/same-pattern grouping -- hit objects only. Requires
+    assign_ratios() to have already run on the full (unfiltered) object list."""
     rhythm_groups: list[SameRhythmGrouping] = []
     for grouped in _group_by_interval(note_objects):
         rhythm_groups.append(SameRhythmGrouping(rhythm_groups[-1] if rhythm_groups else None, grouped))

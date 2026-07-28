@@ -53,6 +53,7 @@ def calculate(beatmap: TaikoBeatmap, clock_rate: float = 1.0, is_convert: bool =
         return TaikoDifficultyAttributes(0, 0, 0, 0, 0, 0, 1, 0, 0, ghw)
 
     colour_mod.process_and_assign(objects)
+    rhythm_mod.assign_ratios(objects)
     rhythm_mod.process_and_assign([o for o in objects if o.is_hit])
 
     rhythm_skill = StrainDecaySkill(1.0, 0.4, lambda o: rhythm_mod.evaluate_strain_value(o))
