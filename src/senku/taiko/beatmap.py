@@ -11,6 +11,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
 
+from .._diffutils import apply_difficulty_mods
+
+# TaikoModHardRock/TaikoModEasy scale SliderMultiplier (a `double` field in the
+# real game, hence full-precision literals here, unlike the float32 CS/AR/OD/HP
+# scaling in apply_difficulty_mods) in addition to the shared OD scaling --
+# this feeds EffectiveBPM (see preprocessing.py), which the Reading skill is
+# very sensitive to.
+_HR_SLIDER_MULTIPLIER = 1.8666666666666665
+_EZ_SLIDER_MULTIPLIER = 0.8
+
 
 class TaikoObjectKind(Enum):
     CENTRE = auto()  # "don"
@@ -70,7 +80,7 @@ class TaikoBeatmap:
         return bpm, scroll_speed
 
 
-def parse_osu_file(text: str) -> TaikoBeatmap:
+def parse_osu_file(text: str, mods: frozenset[str] = frozenset()) -> TaikoBeatmap:
     section = None
     overall_difficulty = 5.0
     slider_multiplier = 1.4
@@ -119,6 +129,13 @@ def parse_osu_file(text: str) -> TaikoBeatmap:
             raw_notes.append((start_time, object_type, hit_sound))
 
     timing_points.sort(key=lambda tp: tp.time)
+
+    if "HR" in mods:
+        _, _, overall_difficulty, _ = apply_difficulty_mods(0.0, 0.0, overall_difficulty, 0.0, mods)
+        slider_multiplier *= _HR_SLIDER_MULTIPLIER
+    elif "EZ" in mods:
+        _, _, overall_difficulty, _ = apply_difficulty_mods(0.0, 0.0, overall_difficulty, 0.0, mods)
+        slider_multiplier *= _EZ_SLIDER_MULTIPLIER
 
     notes: list[TaikoNote] = []
     for start_time, object_type, hit_sound in raw_notes:

@@ -10,7 +10,37 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
+
 SQRT2 = 1.4142135623730950
+
+
+def apply_difficulty_mods(circle_size: float, approach_rate: float, overall_difficulty: float, drain_rate: float,
+                           mods: frozenset[str]) -> tuple[float, float, float, float]:
+    """HR/EZ CS/AR/OD/HP scaling shared across modes that carry these four stats.
+
+    BeatmapDifficulty fields are `float` (single precision) in the real game, and
+    mods multiply them in that precision -- match via float32 to reproduce
+    identical rounding. Modes that don't use a given stat (e.g. catch ignoring
+    OD/HP) can just discard the corresponding return value.
+    """
+    cs = np.float32(circle_size)
+    ar = np.float32(approach_rate)
+    od = np.float32(overall_difficulty)
+    hp = np.float32(drain_rate)
+
+    if "EZ" in mods:
+        cs *= np.float32(0.5)
+        ar *= np.float32(0.5)
+        od *= np.float32(0.5)
+        hp *= np.float32(0.5)
+    elif "HR" in mods:
+        cs = min(cs * np.float32(1.3), np.float32(10.0))
+        ar = min(ar * np.float32(1.4), np.float32(10.0))
+        od = min(od * np.float32(1.4), np.float32(10.0))
+        hp = min(hp * np.float32(1.4), np.float32(10.0))
+
+    return float(cs), float(ar), float(od), float(hp)
 
 
 def milliseconds_to_bpm(ms: float, delimiter: int = 4) -> float:

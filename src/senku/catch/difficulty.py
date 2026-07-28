@@ -45,6 +45,11 @@ def _build_movement_objects(beatmap: CatchBeatmap, clock_rate: float) -> list[_M
         return []
 
     half_catcher_width = beatmap.catch_width() / 2
+    # Extra shrink beyond CS 5.5 -- applies only to movement/difficulty-object
+    # construction, NOT to Catcher.CalculateCatchWidth itself (beatmap.catch_width()
+    # above) and NOT to hyperdash-target detection at parse time (_compute_hyperdash
+    # in beatmap.py uses the raw width). Below CS 5.5 this is a no-op.
+    half_catcher_width *= 1.0 - max(0.0, beatmap.circle_size - 5.5) * 0.0625
     scaling_factor = NORMALIZED_HALF_CATCHER_WIDTH / half_catcher_width
 
     normalized_positions = [o.x * scaling_factor for o in palpable]

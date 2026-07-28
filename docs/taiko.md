@@ -27,8 +27,19 @@ print(attributes.star_rating, result["total"])
 ## `parse_osu_file`
 
 ```python
-def parse_osu_file(text: str) -> TaikoBeatmap
+def parse_osu_file(text: str, mods: frozenset[str] = frozenset()) -> TaikoBeatmap
 ```
+
+- `mods` — `HR`/`EZ` only (the two beatmap-affecting mods taiko has). `HR`
+  scales OD (`min(OD*1.4, 10)`, same float32 formula as every other mode)
+  **and** `slider_multiplier` (`*= 1.8666666666666665`, a double-precision
+  constant — this isn't a typo, it's copied from the real game's own
+  `TaikoModHardRock`). `EZ` scales OD (`*0.5`) and `slider_multiplier`
+  (`*= 0.8`). The `slider_multiplier` scaling matters more than it looks:
+  it feeds `EffectiveBPM` in `preprocessing.py`, which the Reading skill's
+  difficulty curve is very sensitive to — star rating shifts noticeably
+  under HR/EZ even on maps where OD is already saturated at 10 and the
+  hit-window change alone would be a no-op.
 
 Returns a `TaikoBeatmap`:
 
@@ -124,8 +135,9 @@ Returns a `dict`, not a float:
 |---|---|
 | `DT`/`NC` | `clock_rate=1.5` on both `calculate` and `calculate_pp` |
 | `HT`/`DC` | `clock_rate=0.75` on both `calculate` and `calculate_pp` |
+| `HR` | `parse_osu_file(text, mods={"HR"})` — scales OD and `slider_multiplier` (see above); no performance-side multiplier for HR in taiko |
+| `EZ` | `parse_osu_file(text, mods={"EZ"})` (OD/`slider_multiplier` scaling) **and** `easy=True` on `calculate_pp` (the separate `×0.975` performance multiplier) — both are needed for a full EZ score |
 | `HD` | `hidden=True` on `calculate_pp` |
 | `FL` | `flashlight=True` on `calculate_pp` |
-| `EZ` | `easy=True` on `calculate_pp` |
-| Relax | `is_relax=True` on `calculate` (difficulty-level only; no dedicated performance-side RX handling in taiko) |
+| `RX` (Relax) | `is_relax=True` on `calculate` — a genuine difficulty-level change in taiko (zeroes colour's contribution and divides stamina's by 1.5 inside strain-peak combination), unlike osu!std where RX only affects pp. No dedicated performance-side RX handling needed beyond that. |
 | Convert (std→taiko) | `is_convert=True` on both `calculate` and `calculate_pp` |

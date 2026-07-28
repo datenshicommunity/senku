@@ -11,8 +11,7 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-import numpy as np
-
+from .._diffutils import apply_difficulty_mods
 from .._legacy_beat_length import TimingPoint, beat_length_at, precision_adjusted_beat_length
 from .._slider_events import generate_slider_events
 from .._slider_path import build_path, position_at
@@ -148,29 +147,6 @@ def _scale_from_circle_size(cs: float, apply_fudge: bool = True) -> float:
     return scale * (broken_gamefield_rounding_allowance if apply_fudge else 1.0)
 
 
-def _apply_difficulty_mods(circle_size: float, approach_rate: float, overall_difficulty: float, drain_rate: float,
-                            mods: frozenset[str]) -> tuple[float, float, float, float]:
-    # BeatmapDifficulty fields are `float` (single precision) in the real game, and mods
-    # multiply them in that precision -- match via float32 to reproduce identical rounding.
-    cs = np.float32(circle_size)
-    ar = np.float32(approach_rate)
-    od = np.float32(overall_difficulty)
-    hp = np.float32(drain_rate)
-
-    if "EZ" in mods:
-        cs *= np.float32(0.5)
-        ar *= np.float32(0.5)
-        od *= np.float32(0.5)
-        hp *= np.float32(0.5)
-    elif "HR" in mods:
-        cs = min(cs * np.float32(1.3), np.float32(10.0))
-        ar = min(ar * np.float32(1.4), np.float32(10.0))
-        od = min(od * np.float32(1.4), np.float32(10.0))
-        hp = min(hp * np.float32(1.4), np.float32(10.0))
-
-    return float(cs), float(ar), float(od), float(hp)
-
-
 def _parse_curve(field5: str) -> tuple[str, list[tuple[float, float]]]:
     parts = field5.split("|")
     curve_type = parts[0]
@@ -260,7 +236,7 @@ def parse_osu_file(text: str, mods: frozenset[str] = frozenset(), difficulty_adj
     if not ar_specified:
         approach_rate = overall_difficulty
 
-    circle_size, approach_rate, overall_difficulty, drain_rate = _apply_difficulty_mods(
+    circle_size, approach_rate, overall_difficulty, drain_rate = apply_difficulty_mods(
         circle_size, approach_rate, overall_difficulty, drain_rate, mods,
     )
 

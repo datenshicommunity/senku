@@ -100,12 +100,17 @@ function each mod's parameter lives on: [docs/osu.md](docs/osu.md#mod-support-ma
 and `NF`/`EZ` (via `no_fail=`/`easy=` on `calculate_pp`) — see
 [docs/mania.md](docs/mania.md#mod-support-matrix).
 
-`taiko` supports `DT`/`HT`/`NC`/`DC`/`HD`/`FL`/`EZ`, plus a difficulty-level
-Relax flag and std→taiko convert handling — see
-[docs/taiko.md](docs/taiko.md#mod-support-matrix).
+`taiko` supports `DT`/`HT`/`NC`/`DC`/`HR`/`EZ`/`HD`/`FL`/`RX`, plus
+std→taiko convert handling — see
+[docs/taiko.md](docs/taiko.md#mod-support-matrix). HR/EZ scale OD *and*
+`slider_multiplier` (not just OD), and RX is a genuine difficulty-level
+change in taiko, unlike osu!std.
 
-`catch` supports `DT`/`HT`/`NC`/`DC`/`HD`/`FL`/`NF` — see
-[docs/catch.md](docs/catch.md#mod-support-matrix).
+`catch` supports `DT`/`HT`/`NC`/`DC`/`HR`/`EZ`/`HD`/`FL`/`NF` — see
+[docs/catch.md](docs/catch.md#mod-support-matrix). HR also runs a
+bit-exact port of the real client's legacy RNG fruit-position jitter
+(`CatchBeatmapProcessor.ApplyPositionOffsets`), needed because it changes
+hyperdash-target detection.
 
 For osu! standard scores with a known legacy total score (real submitted
 plays), pass `legacy_total_score=` to `calculate_pp` for a more precise

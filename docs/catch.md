@@ -28,8 +28,18 @@ print(attributes.star_rating, pp)
 ## `parse_osu_file`
 
 ```python
-def parse_osu_file(text: str) -> CatchBeatmap
+def parse_osu_file(text: str, mods: frozenset[str] = frozenset()) -> CatchBeatmap
 ```
+
+- `mods` — `HR`/`EZ` only. Both scale CS/AR with the standard formula.
+  HR additionally runs a legacy xorshift-RNG position-jitter pass
+  (`CatchBeatmapProcessor.ApplyPositionOffsets`, seed `1337`) over every
+  fruit, tiny droplet, and (generated-but-otherwise-discarded) banana in
+  time order, since the real client nudges non-slider fruit positions
+  under HR and this changes hyperdash-target detection. See
+  [`_legacy_random.py`](../src/senku/_legacy_random.py) and
+  `_apply_hard_rock_offset`/`_apply_random_offset`/`_apply_offset` in
+  `beatmap.py`. EZ does not jitter anything.
 
 Returns a `CatchBeatmap`:
 
@@ -39,14 +49,22 @@ Returns a `CatchBeatmap`:
 | `approach_rate` | `float` | |
 | `slider_multiplier` | `float` | |
 | `slider_tick_rate` | `float` | |
-| `objects` | `list[CatchObject]` | Sorted, palpable objects only — bananas and (already-excluded) tiny droplets are handled by the caller/parser as needed |
+| `objects` | `list[CatchObject]` | Sorted, includes bananas (see below) |
 
 `CatchBeatmap.catch_width()` returns the catcher's effective catch width
-in playfield units, derived from `circle_size`.
+in playfield units, derived from `circle_size` (no legacy rounding fudge,
+matching `Catcher.CalculateCatchWidth` — this is also what hyperdash-target
+detection at parse time uses; a *separate*, larger shrink for CS above 5.5
+is applied only inside `difficulty.py`'s movement-object construction, not
+here).
 
-`CatchObject` has `start_time`, `x` (already includes any hyperdash
-x-offset), `kind` (`CatchObjectKind.FRUIT/DROPLET/TINY_DROPLET/BANANA` —
-`BANANA` is excluded from difficulty entirely), `hyper_dash_target`, and
+`CatchObject` has `start_time`, `x` (the *effective* X — already includes
+any HR jitter offset), `kind`
+(`CatchObjectKind.FRUIT/DROPLET/TINY_DROPLET/BANANA` — `BANANA` is
+excluded from difficulty/combo entirely, and only exists at all to keep
+HR's RNG stream synchronized past beatmaps containing spinners),
+`from_slider` (`True` for a slider's head/tail/repeat pieces — these get
+no HR jitter, unlike standalone fruits), `hyper_dash_target`, and
 `distance_to_hyper_dash`; `hyper_dash` is `True` when
 `hyper_dash_target is not None`.
 
@@ -115,10 +133,11 @@ Helper functions also exported from `performance.py`:
 |---|---|
 | `DT`/`NC` | `clock_rate=1.5` on both `calculate` and `calculate_pp` |
 | `HT`/`DC` | `clock_rate=0.75` on both `calculate` and `calculate_pp` |
+| `HR` | `parse_osu_file(text, mods={"HR"})` — CS/AR scaling + RNG position-jitter (see above) |
+| `EZ` | `parse_osu_file(text, mods={"EZ"})` — CS/AR scaling only |
 | `HD` | `hidden=True` on `calculate_pp` |
 | `FL` | `flashlight=True` on `calculate_pp` |
 | `NF` | `no_fail=True` on `calculate_pp` |
 
-There's no CS/AR/OD difficulty-adjust or HR/EZ-specific handling
-implemented in `parse_osu_file` for catch yet — pass an already-adjusted
-`CatchBeatmap` if you need HR/EZ CS/AR scaling.
+There's no CS/AR difficulty-adjust (`DA`) support for catch — only the
+standard HR/EZ scaling above.
