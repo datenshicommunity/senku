@@ -42,3 +42,17 @@ def test_mania_star_rating_and_pp(load_fixture, fixture_name, judgements, expect
 
     assert sr == pytest.approx(expected_sr, rel=1e-9)
     assert pp == pytest.approx(expected_pp, rel=1e-9)
+
+
+def test_mania_nan_timestamp_does_not_crash(load_fixture):
+    """Regression test for a crash on a real "aspire"/troll beatmap: a
+    mapper literally wrote "NaN" as a note's time field (float("NaN")
+    parses successfully in both Python and C#) -- the unstable sort's
+    comparator then called round() on NaN, which raises in Python
+    (Math.Round(double) in C# just returns NaN unchanged). Fixed via
+    safe_round.
+    """
+    beatmap = parse_osu_file(load_fixture("mania_nan_timestamp_edge_case.osu"))
+    sr = star_rating(beatmap)
+
+    assert sr == pytest.approx(0.0, abs=1e-12)

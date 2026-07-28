@@ -55,9 +55,21 @@ def logistic(exponent: float, max_value: float = 1.0) -> float:
     return max_value / (1.0 + math.exp(exponent))
 
 
+def safe_pow(base: float, exponent: float) -> float:
+    """Matches C#'s Math.Pow: a negative base with a non-integer exponent
+    yields NaN. Python's ** operator instead returns a complex number, which
+    crashes far downstream (e.g. an unrelated `if x > 0` comparison) rather
+    than at the actual point of divergence -- a strain value going slightly
+    negative before a fractional-power p-norm is a real (if rare) occurrence
+    on real beatmaps, not just contrived input."""
+    if base < 0 and exponent != math.floor(exponent):
+        return math.nan
+    return base ** exponent
+
+
 def norm(p: float, *values: float) -> float:
-    total = sum(pow(v, p) for v in values)
-    return pow(total, 1.0 / p)
+    total = sum(safe_pow(v, p) for v in values)
+    return safe_pow(total, 1.0 / p)
 
 
 def bell_curve(x: float, mean: float, width: float, multiplier: float = 1.0) -> float:
@@ -125,3 +137,53 @@ def erf_inv(x: float) -> float:
 
 def almost_equal(a: float, b: float, epsilon: float) -> bool:
     return abs(a - b) <= epsilon
+
+
+_INT32_MIN = -(2**31)
+_INT32_MAX = 2**31 - 1
+
+
+def safe_divide(a: float, b: float) -> float:
+    """Matches C# double division semantics: division by exact zero yields
+    +-Infinity or NaN rather than raising ZeroDivisionError like Python's `/`
+    does for floats. Comes up wherever a ratio is built from two beatmap-
+    derived deltas that can coincide (e.g. two notes at the same timestamp)."""
+    if b == 0:
+        if a > 0:
+            return math.inf
+        if a < 0:
+            return -math.inf
+        return math.nan
+    return a / b
+
+
+def safe_round(x: float) -> float:
+    """Matches C#'s Math.Round(double): returns a double, so infinity/NaN pass
+    through unchanged rather than raising like Python's round() (which
+    rejects non-finite input outright)."""
+    if math.isnan(x) or math.isinf(x):
+        return x
+    return float(round(x))
+
+
+def safe_truncate(x: float) -> float:
+    """Matches C#'s `Math.Truncate(double)`: returns a double, so infinity/NaN
+    pass through unchanged rather than raising like Python's `math.trunc`
+    (which converts to an arbitrary-precision int and rejects non-finite
+    input). Degenerate beatmap data can legitimately produce infinite
+    intermediate ratios here."""
+    if math.isnan(x) or math.isinf(x):
+        return x
+    return float(math.trunc(x))
+
+
+def unchecked_int32(x: float) -> int:
+    """Matches C#'s `unchecked (int)` cast of a double: overflow, underflow,
+    infinity, and NaN all silently produce int.MinValue rather than raising
+    (Python's `int()` raises OverflowError/ValueError instead). Degenerate
+    beatmap data -- e.g. a slider with near-zero velocity computing an
+    effectively-infinite duration -- can produce exactly this on troll/edge-
+    case maps, and the reference client keeps going rather than crashing."""
+    if math.isnan(x) or math.isinf(x) or x > _INT32_MAX or x < _INT32_MIN:
+        return _INT32_MIN
+    return int(x)

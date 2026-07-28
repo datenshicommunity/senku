@@ -57,6 +57,19 @@ def test_taiko_star_rating_and_pp(load_fixture, fixture_name, mods, is_convert, 
     assert result["total"] == pytest.approx(expected_pp, rel=1e-9)
 
 
+def test_taiko_duplicate_timestamp_does_not_crash(load_fixture):
+    """Regression test for a crash on a real "aspire"/troll beatmap: two
+    notes at the exact same timestamp give delta_time=0, and
+    `obj.delta_time / previous.delta_time` raised ZeroDivisionError.
+    Fixed via safe_divide (C# double division semantics: division by
+    exact zero yields Infinity/NaN, not an exception).
+    """
+    beatmap = parse_osu_file(load_fixture("taiko_duplicate_timestamp_edge_case.osu"))
+    attributes = calculate(beatmap)
+
+    assert attributes.star_rating == pytest.approx(0.4416774106511118, rel=1e-9)
+
+
 def test_taiko_relax(load_fixture):
     """RX is a genuine difficulty-level change in taiko (not performance-only like
     osu!std's RX) -- it zeroes colour's contribution and divides stamina's by 1.5

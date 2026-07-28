@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import math
 
-from .._diffutils import bell_curve, logistic_full, reverse_lerp, almost_equal
+from .._diffutils import bell_curve, logistic_full, reverse_lerp, almost_equal, safe_divide
 from .preprocessing import TaikoDifficultyHitObject
 from .stamina import evaluate_stamina_difficulty_of
 
@@ -67,7 +67,7 @@ class SameRhythmGrouping:
 
         prev_interval = previous.hit_object_interval if previous else None
         if prev_interval is not None and self.hit_object_interval is not None:
-            self.hit_object_interval_ratio = self.hit_object_interval / prev_interval
+            self.hit_object_interval_ratio = safe_divide(self.hit_object_interval, prev_interval)
         else:
             self.hit_object_interval_ratio = 1.0
 
@@ -103,7 +103,7 @@ class SamePatternGrouping:
     @property
     def interval_ratio(self) -> float:
         prev = self.previous.group_interval if self.previous else 1.0
-        return self.group_interval / prev
+        return safe_divide(self.group_interval, prev)
 
     @property
     def first_hit_object(self) -> TaikoDifficultyHitObject:
@@ -161,7 +161,7 @@ def assign_ratios(all_objects: list[TaikoDifficultyHitObject]) -> None:
         if previous is None:
             ratio = 1.0
         else:
-            actual_ratio = obj.delta_time / previous.delta_time
+            actual_ratio = safe_divide(obj.delta_time, previous.delta_time)
             ratio = _closest_common_ratio(actual_ratio)
         obj.rhythm_data = RhythmData(ratio)
 
@@ -218,7 +218,7 @@ def _repeated_interval_penalty(group: SameRhythmGrouping, hit_window: float, thr
 
         for i in range(len(intervals)):
             for j in range(i + 1, len(intervals)):
-                ratio = intervals[i] / intervals[j]
+                ratio = safe_divide(intervals[i], intervals[j])
                 if abs(1 - ratio) <= threshold:
                     return 0.80
         return 1.0

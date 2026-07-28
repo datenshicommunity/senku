@@ -11,7 +11,7 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from .._diffutils import apply_difficulty_mods
+from .._diffutils import apply_difficulty_mods, unchecked_int32
 from .._legacy_beat_length import TimingPoint, beat_length_at, precision_adjusted_beat_length
 from .._slider_events import generate_slider_events
 from .._slider_path import build_path, position_at
@@ -152,6 +152,12 @@ def _parse_curve(field5: str) -> tuple[str, list[tuple[float, float]]]:
     curve_type = parts[0]
     points = []
     for p in parts[1:]:
+        # Troll/joke maps sometimes stuff extra non-coordinate tokens into this
+        # field (e.g. spelling something out one letter per "point"); the
+        # reference client doesn't reject the whole slider over it, it just
+        # doesn't treat the bad token as a control point.
+        if ":" not in p:
+            continue
         px, py = p.split(":")
         points.append((float(px), float(py)))
     return curve_type, points
@@ -432,7 +438,7 @@ def _apply_stacking_new(beatmap: OsuBeatmap, hit_objects: list[OsuObject], start
 
                 end_time = object_n.end_time
 
-                if int(object_i.start_time) - int(end_time) > stack_threshold:
+                if unchecked_int32(object_i.start_time) - unchecked_int32(end_time) > stack_threshold:
                     break
 
                 if n < extended_start_index:

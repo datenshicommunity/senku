@@ -164,3 +164,16 @@ def test_osu_aim_total_value_zero_division():
     # The point of this case isn't the *value* (0 either way) -- it's that it
     # doesn't raise ZeroDivisionError.
     assert _calculate_total_value(0.0, 0.0, 5.0) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_osu_malformed_slider_curve_token_does_not_crash(load_fixture):
+    """Regression test for a crash on a real "aspire"/troll beatmap: a
+    mapper stuffed a non-coordinate token (no ":") into a slider's curve
+    field -- previously `_parse_curve` raised ValueError trying to unpack
+    it as an "x:y" pair. Fixed by skipping tokens without a colon instead
+    of treating the whole slider as malformed.
+    """
+    beatmap = parse_osu_file(load_fixture("std_malformed_slider_token_edge_case.osu"))
+    attributes = calculate(beatmap)
+
+    assert attributes.star_rating == pytest.approx(0.1432439930261732, rel=1e-9)

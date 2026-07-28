@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-from .._diffutils import logistic_full, milliseconds_to_bpm, reverse_lerp, smoothstep_bell_curve
+from .._diffutils import logistic_full, milliseconds_to_bpm, reverse_lerp, safe_truncate, smoothstep_bell_curve
 from ._harmonic_skill import HarmonicSkill
 from .beatmap import OsuObjectKind
 from .preprocessing import MIN_DELTA_TIME as _MIN_DELTA_TIME
@@ -75,7 +75,7 @@ class _Island:
 
 def _get_effective_difficulty(delta_difference_ratio: float) -> float:
     rhythm_ratio_difficulty_multiplier = 26.0
-    delta_difference_fraction = delta_difference_ratio - math.trunc(delta_difference_ratio)
+    delta_difference_fraction = delta_difference_ratio - safe_truncate(delta_difference_ratio)
     return 1.0 + rhythm_ratio_difficulty_multiplier * min(0.5, smoothstep_bell_curve(delta_difference_fraction))
 
 

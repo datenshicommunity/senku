@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .._diffutils import safe_round
 from .._legacy_sort import unstable_sort
 
 
@@ -100,8 +101,13 @@ def parse_osu_file(text: str) -> ManiaBeatmap:
     # A stable sort silently orders ties differently, which changes
     # per-column history construction for every note sharing a rounded
     # timestamp with another (chords -- more common on hold-heavy maps).
-    def _compare(a: tuple, b: tuple) -> int:
-        return round(a[0]) - round(b[0])
+    def _compare(a: tuple, b: tuple) -> float:
+        # safe_round: a troll map can literally put "NaN" as a note's time
+        # field (float("NaN") parses successfully in both Python and C#) --
+        # NaN comparisons are false either way, so this just leaves such
+        # notes in whatever order quicksort's partitioning happens to place
+        # them, matching Math.Round(double)'s pass-through-NaN behaviour.
+        return safe_round(a[0]) - safe_round(b[0])
 
     unstable_sort(raw_notes, _compare)
     notes = [ManiaNote(start_time=s, column=c, end_time=e) for s, c, e in raw_notes]

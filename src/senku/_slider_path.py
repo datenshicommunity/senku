@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
+
 BEZIER_TOLERANCE = 0.25
 CIRCULAR_ARC_TOLERANCE = 0.1
 
@@ -29,18 +31,28 @@ def _bezier_is_flat_enough(points: list[tuple[float, float]]) -> bool:
 
 
 def _bezier_subdivide(points: list[tuple[float, float]]) -> tuple[list, list]:
+    # De Casteljau's algorithm is inherently O(n^2) in the number of control
+    # points (a triangular midpoint reduction) -- unavoidable and the same in
+    # any implementation, reference included. What IS avoidable is doing that
+    # O(n^2) work through Python-level tuple allocation/indexing: a troll
+    # beatmap with tens of thousands of control points on a single slider
+    # segment turns a few-billion-operation task that's instant in a
+    # compiled runtime into a multi-minute one in interpreted Python. Same
+    # math, vectorised per row with numpy so each "j" loop is one array op
+    # instead of n Python-level iterations.
     n = len(points)
-    midpoints = list(points)
-    left = [None] * n
-    right = [None] * n
+    midpoints = np.asarray(points, dtype=np.float64)
+    left = np.empty((n, 2), dtype=np.float64)
+    right = np.empty((n, 2), dtype=np.float64)
 
     for i in range(n):
         left[i] = midpoints[0]
         right[n - i - 1] = midpoints[n - i - 1]
-        for j in range(n - i - 1):
-            midpoints[j] = ((midpoints[j][0] + midpoints[j + 1][0]) / 2, (midpoints[j][1] + midpoints[j + 1][1]) / 2)
+        m = n - i - 1
+        if m > 0:
+            midpoints[:m] = (midpoints[:m] + midpoints[1:m + 1]) * 0.5
 
-    return left, right
+    return [(float(p[0]), float(p[1])) for p in left], [(float(p[0]), float(p[1])) for p in right]
 
 
 def _bezier_approximate(points: list[tuple[float, float]], output: list[tuple[float, float]]) -> None:
@@ -57,9 +69,25 @@ def _bezier_approximate(points: list[tuple[float, float]], output: list[tuple[fl
         output.append((px, py))
 
 
+_MAX_BEZIER_CONTROL_POINTS = 300
+
+
 def _bezier_to_piecewise_linear(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
     if len(points) < 2:
         return list(points)
+
+    if len(points) > _MAX_BEZIER_CONTROL_POINTS:
+        # De Casteljau subdivision is O(n^2) per call, and unlike the
+        # subdivision-count cap below, that cost is paid on the FIRST call
+        # regardless of how few times we recurse -- a troll slider with tens
+        # or hundreds of thousands of control points (real example: a single
+        # segment with 147,545 points) makes even one subdivide call take
+        # tens of seconds. No normal map's slider curve carries anywhere
+        # near this many meaningfully-distinct control points, so evenly
+        # downsampling (keeping the endpoints) bounds the worst case without
+        # affecting any realistic beatmap's output.
+        step = (len(points) - 1) / (_MAX_BEZIER_CONTROL_POINTS - 1)
+        points = [points[round(i * step)] for i in range(_MAX_BEZIER_CONTROL_POINTS)]
 
     output: list[tuple[float, float]] = []
     stack = [list(points)]
@@ -70,11 +98,23 @@ def _bezier_to_piecewise_linear(points: list[tuple[float, float]]) -> list[tuple
     result_stack = []
     to_process = [points]
 
+    # Safety bound, not a reference-verified constant: de Casteljau subdivision
+    # doesn't shrink the control-point count on either half (both halves keep
+    # all n points, just describing a smaller curve span), so a pathological
+    # slider with tens of thousands of control points that never converges to
+    # "flat enough" can recurse effectively forever -- each level is O(n^2)
+    # regardless of how vectorised the inner loop is. Bail out to whatever
+    # segment we're on rather than hang; this only ever triggers on
+    # troll/edge-case content nowhere near normal map complexity.
+    _MAX_SUBDIVISIONS = 10_000
+    subdivisions = 0
+
     while to_process:
         current = to_process.pop()
-        if _bezier_is_flat_enough(current):
+        if subdivisions >= _MAX_SUBDIVISIONS or _bezier_is_flat_enough(current):
             _bezier_approximate(current, output)
             continue
+        subdivisions += 1
         left, right = _bezier_subdivide(current)
         to_process.append(right)
         to_process.append(left)

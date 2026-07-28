@@ -15,4 +15,4 @@ calculator with the same shape:
     pp = calculate_pp(attributes, OsuJudgements(n300=..., n100=..., n50=..., n_miss=...), ...)
 """
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
