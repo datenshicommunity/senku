@@ -1,0 +1,19 @@
+senku attribution notice
+=========================
+
+senku is an independent, from-scratch implementation. No source code was
+copied from any third-party project; every module in this repository was
+written by reading publicly available documentation and reference material
+describing the target algorithms, then re-implemented with original
+architecture, naming, and structure.
+
+Some of the difficulty/performance curve shapes and constants implemented
+here are derived from the publicly documented behaviour of ppy Pty Ltd's
+osu! difficulty and performance calculators (MIT Licence, copyright ppy Pty
+Ltd, https://github.com/ppy/osu). This notice is included so that
+attribution is preserved as required by that licence's terms, even though
+senku is not a fork, port, or redistribution of that codebase and is
+presented as a general-purpose rhythm game performance calculator.
+
+This does not change senku's own licensing: senku itself is distributed
+under the MIT License (see LICENSE), copyright datenshicommunity.

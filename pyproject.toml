@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "senku"
+version = "1.0.0"
+description = "Another rhythm game performance calculator: pure-Python difficulty and performance (pp) calculation for a 4-mode circle-clicking rhythm game."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "datenshicommunity" },
+]
+dependencies = [
+    "numpy>=1.24",
+]
+
+[project.urls]
+Homepage = "https://github.com/datenshicommunity/senku"
+Repository = "https://github.com/datenshicommunity/senku"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
