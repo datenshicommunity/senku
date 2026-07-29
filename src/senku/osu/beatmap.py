@@ -238,9 +238,22 @@ def parse_osu_file(text: str, mods: frozenset[str] = frozenset(), difficulty_adj
             if len(fields) < 2:
                 continue
             time = float(fields[0])
-            beat_length = float(fields[1])
-            scroll_speed = -100.0 / beat_length if beat_length < 0 else 1.0
-            timing_points.append(TimingPoint(time=time, beat_length=beat_length, scroll_speed=scroll_speed))
+            raw_beat_length = float(fields[1])
+            generate_ticks = not math.isnan(raw_beat_length)
+            if raw_beat_length > 0:
+                # TimingControlPoint.BeatLength is a BindableDouble clamped to
+                # [6, 60000] (MinValue/MaxValue) in the reference -- a troll
+                # timing point can declare an absurd BPM (e.g. beat_length=
+                # 3.341ms -> ~18000 BPM) that silently clamps rather than
+                # being used at face value.
+                beat_length = min(max(raw_beat_length, 6.0), 60000.0)
+                scroll_speed = 1.0
+            else:
+                beat_length = raw_beat_length
+                scroll_speed = -100.0 / raw_beat_length if raw_beat_length < 0 else 1.0
+                # DifficultyControlPoint.SliderVelocity is likewise clamped to [0.1, 10].
+                scroll_speed = min(max(scroll_speed, 0.1), 10.0)
+            timing_points.append(TimingPoint(time=time, beat_length=beat_length, scroll_speed=scroll_speed, generate_ticks=generate_ticks))
             continue
 
         if section == "HitObjects":
@@ -348,14 +361,18 @@ def _convert_slider(fields: list[str], head_x: float, head_y: float, start_time:
     path = build_path(curve_type, control_points, pixel_length)
     path_distance = pixel_length
 
-    raw_beat_length, scroll_speed = beat_length_at(timing_points, start_time)
+    raw_beat_length, scroll_speed, generate_ticks = beat_length_at(timing_points, start_time)
     adjusted_beat_length = precision_adjusted_beat_length(raw_beat_length, scroll_speed, ruleset="osu")
 
     velocity = BASE_SCORING_DISTANCE * slider_multiplier / adjusted_beat_length
     # Deliberately uses the RAW (un-adjusted) beat length here, matching stable's
     # intentional floating-point quirk (see Slider.ApplyDefaultsToSelf upstream).
     scoring_distance = velocity * raw_beat_length
-    tick_distance = scoring_distance / slider_tick_rate
+    # GenerateTicks=false (a green line with a literal NaN beatLength) means
+    # no ticks at all for this slider -- TickDistance becomes Infinity, which
+    # the length-clamp in generate_slider_events() already reduces to "no
+    # ticks fit" without any further special-casing there.
+    tick_distance = (scoring_distance / slider_tick_rate) if generate_ticks else math.inf
 
     span_duration = path_distance / velocity if velocity > 0 else 0.0
     duration = span_count * path_distance / velocity if velocity > 0 else 0.0

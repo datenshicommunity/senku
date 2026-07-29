@@ -201,3 +201,32 @@ def test_osu_extreme_slider_length_drops_the_object(load_fixture):
 
     attributes = calculate(beatmap)
     assert attributes.star_rating == pytest.approx(0.3018816788399207, rel=1e-9)
+
+
+def test_osu_extreme_bpm_timing_point_is_clamped(load_fixture):
+    """Regression test for the residual gap left after the extreme-slider-length
+    fix on beatmap 2536330 (star_rating went from 9,969,497 to a still-off
+    163.68 after dropping the extreme sliders, vs the map's real official
+    176.73). Root cause confirmed via decompile: `TimingControlPoint.BeatLength`
+    and `DifficultyControlPoint.SliderVelocity` are both clamped `BindableDouble`s
+    in the reference ([6, 60000] and [0.1, 10] respectively, not used at face
+    value) -- a troll timing point declaring beat_length=3.341 (~18000 BPM)
+    silently becomes 6 (10000 BPM cap), same for an absurd SV multiplier.
+
+    This fixture reproduces one specific real slider from that map exactly
+    (same SliderMultiplier=1.7, same beat_length=3.341 timing point, same
+    slider geometry/length) in isolation. Cross-validated against the real
+    .NET PerformanceCalculator: velocity=28.333333333333332 (confirms both the
+    BeatLength clamp -- unclamped would give velocity=50.883 -- and
+    GenerateTicks=false suppressing all ticks, nested=2).
+    """
+    beatmap = parse_osu_file(load_fixture("std_extreme_bpm_timing_point_edge_case.osu"))
+    from senku.osu.beatmap import OsuObjectKind
+    slider = next(o for o in beatmap.objects if o.kind == OsuObjectKind.SLIDER)
+
+    assert slider.velocity == pytest.approx(28.333333333333332, rel=1e-9)
+    assert len(slider.nested) == 2  # head + tail only, ticks suppressed by GenerateTicks=false
+
+    attributes = calculate(beatmap)
+    assert attributes.star_rating == pytest.approx(0.119846523006125, rel=1e-9)
+    assert attributes.max_combo == 3

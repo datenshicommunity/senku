@@ -105,9 +105,20 @@ def parse_osu_file(text: str, mods: frozenset[str] = frozenset()) -> CatchBeatma
             if len(fields) < 2:
                 continue
             time = float(fields[0])
-            beat_length = float(fields[1])
-            scroll_speed = -100.0 / beat_length if beat_length < 0 else 1.0
-            timing_points.append(TimingPoint(time=time, beat_length=beat_length, scroll_speed=scroll_speed))
+            raw_beat_length = float(fields[1])
+            generate_ticks = not math.isnan(raw_beat_length)
+            if raw_beat_length > 0:
+                # See osu/beatmap.py's identical fix: TimingControlPoint.BeatLength
+                # and DifficultyControlPoint.SliderVelocity are both clamped
+                # BindableDoubles in the reference ([6,60000] and [0.1,10]
+                # respectively), not used at face value.
+                beat_length = min(max(raw_beat_length, 6.0), 60000.0)
+                scroll_speed = 1.0
+            else:
+                beat_length = raw_beat_length
+                scroll_speed = -100.0 / raw_beat_length if raw_beat_length < 0 else 1.0
+                scroll_speed = min(max(scroll_speed, 0.1), 10.0)
+            timing_points.append(TimingPoint(time=time, beat_length=beat_length, scroll_speed=scroll_speed, generate_ticks=generate_ticks))
             continue
 
         if section == "HitObjects":
@@ -209,7 +220,7 @@ def _convert_slider(fields: list[str], head_x: float, start_time: float, timing_
     path = build_path(curve_type, control_points, pixel_length)
     path_distance = pixel_length  # authoritative length per the .osu file
 
-    raw_beat_length, scroll_speed = beat_length_at(timing_points, start_time)
+    raw_beat_length, scroll_speed, generate_ticks = beat_length_at(timing_points, start_time)
     adjusted_beat_length = precision_adjusted_beat_length(raw_beat_length, scroll_speed, ruleset="fruits")
 
     velocity = BASE_SCORING_DISTANCE * slider_multiplier / adjusted_beat_length
@@ -217,7 +228,9 @@ def _convert_slider(fields: list[str], head_x: float, start_time: float, timing_
     # one used for velocity above -- matches stable's intentional floating-point
     # quirk (see JuiceStream.ApplyDefaultsToSelf upstream).
     scoring_distance = velocity * raw_beat_length
-    tick_distance = scoring_distance / slider_tick_rate
+    # GenerateTicks=false (a green line with a literal NaN beatLength) means no
+    # ticks/droplets at all for this slider -- see osu/beatmap.py's identical fix.
+    tick_distance = (scoring_distance / slider_tick_rate) if generate_ticks else math.inf
 
     span_duration = path_distance / velocity if velocity > 0 else 0.0
 

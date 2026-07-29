@@ -18,11 +18,19 @@ class TimingPoint:
     time: float
     beat_length: float
     scroll_speed: float = 1.0
+    # A green (inherited) line's beatLength field can legitimately be a
+    # literal "NaN" -- the reference decoder (LegacyBeatmapDecoder) allows
+    # NaN here specifically (unlike hit-object coordinates) and treats it as
+    # an explicit "disable slider ticks for this segment" marker
+    # (DifficultyControlPoint.GenerateTicks = !double.IsNaN(rawBeatLength)),
+    # not malformed data. Always True for uninherited (red) lines.
+    generate_ticks: bool = True
 
 
-def beat_length_at(timing_points: list[TimingPoint], time: float) -> tuple[float, float]:
+def beat_length_at(timing_points: list[TimingPoint], time: float) -> tuple[float, float, bool]:
     beat_length = 500.0
     scroll_speed = 1.0
+    generate_ticks = True
     last_uninherited = 500.0
     for tp in timing_points:
         if tp.time > time:
@@ -31,10 +39,12 @@ def beat_length_at(timing_points: list[TimingPoint], time: float) -> tuple[float
             last_uninherited = tp.beat_length
             beat_length = tp.beat_length
             scroll_speed = 1.0
+            generate_ticks = True
         else:
             beat_length = last_uninherited
             scroll_speed = tp.scroll_speed
-    return beat_length, scroll_speed
+            generate_ticks = tp.generate_ticks
+    return beat_length, scroll_speed, generate_ticks
 
 
 # Rulesets differ only in the clamp range applied to the derived bpm multiplier.

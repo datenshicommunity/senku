@@ -1,0 +1,22 @@
+osu file format v14
+
+[General]
+AudioFilename: audio.mp3
+Mode: 0
+
+[Difficulty]
+HPDrainRate:5
+CircleSize:4
+OverallDifficulty:8
+ApproachRate:9
+SliderMultiplier:1.7
+SliderTickRate:1
+
+[TimingPoints]
+0,500,4,2,1,15,1,0
+1000,3.341,4,2,1,15,1,0
+1000,NaN,4,2,1,15,0,0
+
+[HitObjects]
+100,100,0,1,0,0:0:0:0:
+247,235,1000,2,0,L|517:578,1,99867.2605967278
