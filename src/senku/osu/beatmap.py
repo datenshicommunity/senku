@@ -30,6 +30,13 @@ PREEMPT_MIN = 450.0
 
 PLAYFIELD_HEIGHT = 384.0
 
+# Matches the reference decoder's Parsing.cs limits: values past these throw
+# OverflowException/FormatException during line parsing, which the outer
+# per-line try/catch turns into a silent whole-object drop (see parse_osu_file).
+_MAX_COORDINATE_VALUE = 131072.0
+_MAX_PARSE_VALUE = 2147483647.0
+_MAX_SLIDER_REPEATS = 9000
+
 
 class OsuObjectKind(Enum):
     CIRCLE = auto()
@@ -271,10 +278,35 @@ def parse_osu_file(text: str, mods: frozenset[str] = frozenset(), difficulty_adj
             continue
         x = float(fields[0])
         y = float(fields[1])
-        if reflect_y:
-            y = PLAYFIELD_HEIGHT - y
         start_time = float(fields[2])
         object_type = int(fields[3])
+
+        # Reference client behaviour (LegacyDecoder wraps every .osu line in a
+        # try/catch; ConvertHitObjectParser.Parse throws OverflowException via
+        # Parsing.ParseDouble/ParseInt for values past these limits) -- a
+        # troll beatmap can set e.g. a slider's declared pixel length to
+        # hundreds of billions, which the reference silently drops the whole
+        # object for rather than computing an astronomical travel distance.
+        # Not a clamp: the object must be fully absent downstream.
+        if (abs(x) > _MAX_COORDINATE_VALUE or abs(y) > _MAX_COORDINATE_VALUE
+                or abs(start_time) > _MAX_PARSE_VALUE):
+            continue
+        if object_type & _SLIDER_FLAG:
+            if len(fields) < 8:
+                continue
+            slides_ok = True
+            try:
+                if abs(int(fields[6])) > _MAX_SLIDER_REPEATS:
+                    slides_ok = False
+                if abs(float(fields[7])) > _MAX_COORDINATE_VALUE:
+                    slides_ok = False
+            except ValueError:
+                slides_ok = False
+            if not slides_ok:
+                continue
+
+        if reflect_y:
+            y = PLAYFIELD_HEIGHT - y
 
         if object_type & _SPINNER_FLAG:
             end_time = float(fields[5])

@@ -177,3 +177,27 @@ def test_osu_malformed_slider_curve_token_does_not_crash(load_fixture):
     attributes = calculate(beatmap)
 
     assert attributes.star_rating == pytest.approx(0.1432439930261732, rel=1e-9)
+
+
+def test_osu_extreme_slider_length_drops_the_object(load_fixture):
+    """Regression test for a real "aspire"/troll beatmap where senku's star
+    rating blew up to 9,969,497 (the map's own real official rating is a
+    bounded ~176.7) -- a mapper set several sliders' declared pixel_length
+    to hundreds of billions of pixels, which senku previously used at face
+    value, producing an astronomical aim travel distance.
+
+    Root cause (confirmed via decompile): the reference client's
+    LegacyDecoder wraps every .osu line in a try/catch; ConvertHitObjectParser
+    throws OverflowException via Parsing.ParseDouble when a slider's declared
+    length exceeds Parsing.MAX_COORDINATE_VALUE (131072.0) -- the whole
+    object is then silently dropped, not clamped. Confirmed exactly on the
+    real map: 840 raw HitObjects lines -> 819 in the reference's playable
+    beatmap, all 21 dropped for this exact reason (zero for any other).
+    """
+    beatmap = parse_osu_file(load_fixture("std_extreme_slider_length_edge_case.osu"))
+
+    assert len(beatmap.objects) == 3  # the 2 normal circles + the trailing one; the extreme slider is dropped
+    assert all(o.kind.name == "CIRCLE" for o in beatmap.objects)
+
+    attributes = calculate(beatmap)
+    assert attributes.star_rating == pytest.approx(0.3018816788399207, rel=1e-9)
