@@ -203,6 +203,35 @@ def test_osu_extreme_slider_length_drops_the_object(load_fixture):
     assert attributes.star_rating == pytest.approx(0.3018816788399207, rel=1e-9)
 
 
+def test_osu_negative_slider_length_uses_geometric_distance(load_fixture):
+    """Regression test for a real "aspire"/troll beatmap where senku's
+    star_rating was 46.51% too low (8.010 vs the map's real official
+    14.976) despite hit_circle_count/slider_count/spinner_count and
+    max_combo all matching almost exactly -- the earlier extreme-length fix
+    only covered pixel_length > 131072, not a *negative* declared length
+    (e.g. "-1", a troll mapper's way of saying "just use the control
+    points' own geometry").
+
+    Root cause (confirmed via decompile + direct raw-data inspection):
+    the reference clamps pixel_length with `Math.Max(0.0, Parsing.ParseDouble(...))`
+    -- senku's first fix only added the upper-bound rejection, still using
+    the (now non-negative but still wrong) declared value at face value.
+    But `_clamp_to_length` is deliberately a no-op when the declared length
+    is <=0, so the path already carries the correct geometric length --
+    `path_distance` just needs to read that instead of the invalid
+    declared value. A slider with curve "L|0:0" (linear, to the origin)
+    from head (348,380) has a real geometric length of ~515.27, not 0.
+    """
+    beatmap = parse_osu_file(load_fixture("std_negative_slider_length_edge_case.osu"))
+    slider = next(o for o in beatmap.objects if o.kind.name == "SLIDER")
+
+    assert slider.path_distance == pytest.approx(515.2708025883089, rel=1e-9)
+
+    attributes = calculate(beatmap)
+    assert attributes.star_rating == pytest.approx(0.35373420605094213, rel=1e-9)
+    assert attributes.max_combo == 7
+
+
 def test_osu_extreme_bpm_timing_point_is_clamped(load_fixture):
     """Regression test for the residual gap left after the extreme-slider-length
     fix on beatmap 2536330 (star_rating went from 9,969,497 to a still-off

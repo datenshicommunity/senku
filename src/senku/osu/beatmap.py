@@ -14,7 +14,7 @@ from enum import Enum, auto
 from .._diffutils import apply_difficulty_mods, unchecked_int32
 from .._legacy_beat_length import TimingPoint, beat_length_at, precision_adjusted_beat_length
 from .._slider_events import generate_slider_events
-from .._slider_path import build_path, position_at
+from .._slider_path import build_path, path_length, position_at
 
 _SLIDER_FLAG = 1 << 1
 _NEW_COMBO_FLAG = 1 << 2
@@ -356,10 +356,18 @@ def _convert_slider(fields: list[str], head_x: float, head_y: float, start_time:
         extra_points = [(px, PLAYFIELD_HEIGHT - py) for px, py in extra_points]
     control_points = [(head_x, head_y)] + extra_points
     span_count = int(fields[6])
-    pixel_length = float(fields[7])
+    # Matches the reference's Math.Max(0.0, Parsing.ParseDouble(array[7], 131072.0))
+    # (ConvertHitObjectParser.cs) -- a troll map can declare a negative
+    # pixel_length (e.g. "-1"), which senku previously used at face value,
+    # sending path_distance/duration negative and corrupting the FOLLOWING
+    # object's travel_distance computation.
+    pixel_length = max(0.0, float(fields[7]))
 
     path = build_path(curve_type, control_points, pixel_length)
-    path_distance = pixel_length
+    # When the declared length is invalid (<=0), the reference falls back to
+    # the path's own geometric length (SliderPath.CalculatedDistance) rather
+    # than treating the slider as zero-length.
+    path_distance = pixel_length if pixel_length > 0 else path_length(path)
 
     raw_beat_length, scroll_speed, generate_ticks = beat_length_at(timing_points, start_time)
     adjusted_beat_length = precision_adjusted_beat_length(raw_beat_length, scroll_speed, ruleset="osu")

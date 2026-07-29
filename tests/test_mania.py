@@ -6,7 +6,7 @@ for the validation methodology).
 import pytest
 
 from senku.mania.beatmap import parse_osu_file
-from senku.mania.difficulty import star_rating
+from senku.mania.difficulty import max_combo, star_rating
 from senku.mania.performance import ManiaJudgements, calculate_pp
 
 CASES = [
@@ -44,15 +44,29 @@ def test_mania_star_rating_and_pp(load_fixture, fixture_name, judgements, expect
     assert pp == pytest.approx(expected_pp, rel=1e-9)
 
 
-def test_mania_nan_timestamp_does_not_crash(load_fixture):
-    """Regression test for a crash on a real "aspire"/troll beatmap: a
-    mapper literally wrote "NaN" as a note's time field (float("NaN")
-    parses successfully in both Python and C#) -- the unstable sort's
-    comparator then called round() on NaN, which raises in Python
-    (Math.Round(double) in C# just returns NaN unchanged). Fixed via
-    safe_round.
+def test_mania_nan_timestamp_is_dropped(load_fixture):
+    """Regression test for a real "aspire"/troll beatmap: a mapper literally
+    wrote "NaN" as a note's time field (float("NaN") parses successfully in
+    both Python and C#).
+
+    First fix (safe_round in the unstable sort's comparator) only stopped a
+    crash -- round() on NaN raises in Python, where C#'s Math.Round(double)
+    just returns NaN unchanged -- but left the NaN-timestamped note in the
+    beatmap, silently producing a wrong star_rating of exactly 0.0 (found
+    via a full accuracy sweep against the real .NET oracle, which gives a
+    nonzero rating for this exact map: the note simply isn't there in the
+    reference). A hit object's time field does NOT allow NaN the way a green
+    timing line's beatLength does -- Parsing.ParseDouble throws
+    OverflowException for it, and LegacyDecoder's per-line try/catch drops
+    the whole object, same mechanism as the extreme-coordinate/pixel-length
+    drop in osu/beatmap.py. Fixed by rejecting NaN/out-of-range x/time/
+    end_time during HitObjects parsing instead of just tolerating NaN at
+    sort time.
     """
     beatmap = parse_osu_file(load_fixture("mania_nan_timestamp_edge_case.osu"))
-    sr = star_rating(beatmap)
 
-    assert sr == pytest.approx(0.0, abs=1e-12)
+    assert len(beatmap.notes) == 3  # the NaN-timestamped note is dropped; 3 valid notes remain
+    assert max_combo(beatmap) == 3
+
+    sr = star_rating(beatmap)
+    assert sr == pytest.approx(0.17433945686679722, rel=1e-9)

@@ -14,7 +14,7 @@ from .._diffutils import apply_difficulty_mods
 from .._legacy_beat_length import TimingPoint, beat_length_at, precision_adjusted_beat_length
 from .._legacy_random import LegacyRandom
 from .._slider_events import generate_slider_events
-from .._slider_path import build_path, position_at
+from .._slider_path import build_path, path_length, position_at
 
 _SLIDER_FLAG = 1 << 1
 _SPINNER_FLAG = 1 << 3
@@ -215,10 +215,13 @@ def _convert_slider(fields: list[str], head_x: float, start_time: float, timing_
     # .osu "slides" field is the total span/pass count directly (1 = no repeat,
     # 2 = one repeat) -- NOT a repeat count that needs +1.
     span_count = int(fields[6])
-    pixel_length = float(fields[7])
+    # Matches the reference's Math.Max(0.0, Parsing.ParseDouble(array[7], 131072.0))
+    # -- see osu/beatmap.py's identical fix.
+    pixel_length = max(0.0, float(fields[7]))
 
     path = build_path(curve_type, control_points, pixel_length)
-    path_distance = pixel_length  # authoritative length per the .osu file
+    # authoritative length per the .osu file, unless invalid -- see osu/beatmap.py.
+    path_distance = pixel_length if pixel_length > 0 else path_length(path)
 
     raw_beat_length, scroll_speed, generate_ticks = beat_length_at(timing_points, start_time)
     adjusted_beat_length = precision_adjusted_beat_length(raw_beat_length, scroll_speed, ruleset="fruits")

@@ -281,6 +281,19 @@ def _cumulative_lengths(path: list[tuple[float, float]]) -> list[float]:
     return cumulative
 
 
+def path_length(path: list[tuple[float, float]]) -> float:
+    """Total geometric length of an already-built piecewise-linear path.
+    Needed when a slider's declared pixel_length is invalid (<=0, e.g. a
+    troll map's negative value, clamped to 0 by the caller) -- the
+    reference falls back to the path's own calculated distance in that
+    case (SliderPath.CalculatedDistance), not to the invalid declared
+    value; _clamp_to_length() is deliberately a no-op for expected_length
+    <= 0, so `path` here is already the untouched, correct-length curve."""
+    if len(path) < 2:
+        return 0.0
+    return _cumulative_lengths(path)[-1]
+
+
 def _clamp_to_length(path: list[tuple[float, float]], expected_length: float) -> list[tuple[float, float]]:
     if len(path) < 2 or expected_length <= 0:
         return path

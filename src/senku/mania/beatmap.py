@@ -7,6 +7,7 @@ long notes). Not a general-purpose beatmap editor/parser.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -34,6 +35,17 @@ class ManiaBeatmap:
 
 
 _HOLD_NOTE_FLAG = 1 << 7  # bit 7 of the hitobject "type" byte marks a long note
+
+# Matches the reference decoder's Parsing.cs limits (see osu/beatmap.py's
+# identical fix): values past these throw OverflowException during line
+# parsing, and the whole hit object is silently dropped, not clamped.
+# Unlike a green timing line's beatLength, a hit object's own time field does
+# NOT allow NaN -- a troll map's literal "NaN" note timestamp is exactly this
+# case (previously only made crash-safe via safe_round in the sort
+# comparator, which stopped the crash but left the NaN-timestamped note in
+# the beatmap, silently wrong -- it must be dropped instead).
+_MAX_COORDINATE_VALUE = 131072.0
+_MAX_PARSE_VALUE = 2147483647.0
 
 
 def _x_to_column(x: float, column_count: int) -> int:
@@ -83,6 +95,10 @@ def parse_osu_file(text: str) -> ManiaBeatmap:
             start_time = float(fields[2])
             object_type = int(fields[3])
 
+            if (math.isnan(x) or math.isnan(start_time)
+                    or abs(x) > _MAX_COORDINATE_VALUE or abs(start_time) > _MAX_PARSE_VALUE):
+                continue
+
             end_time = start_time
             if object_type & _HOLD_NOTE_FLAG:
                 # Mania hold-note extra params: "endTime:sampleSet:sampleIndex:volume:filename"
@@ -90,6 +106,8 @@ def parse_osu_file(text: str) -> ManiaBeatmap:
                 end_time_str = extra.split(":")[0]
                 if end_time_str:
                     end_time = float(end_time_str)
+                    if math.isnan(end_time) or abs(end_time) > _MAX_PARSE_VALUE:
+                        continue
 
             column_count = max(1, round(circle_size))
             column = _x_to_column(x, column_count)
