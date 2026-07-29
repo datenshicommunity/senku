@@ -50,7 +50,13 @@ def precision_adjusted_beat_length(raw_beat_length: float, scroll_speed: float, 
     lo, hi = _CLAMP_RANGE[ruleset]
     slider_velocity_as_beat_length = -100.0 / scroll_speed
     if slider_velocity_as_beat_length < 0:
-        bpm_multiplier = float(np.clip(np.float32(-slider_velocity_as_beat_length), lo, hi)) / 100.0
+        # Pre-clamp in float64 before the float32 round-trip: a troll timing
+        # point with a near-zero scroll_speed can make this value far exceed
+        # float32's range, overflowing to inf on cast (RuntimeWarning) even
+        # though the clip below would mask it entirely either way -- same
+        # final result, no warning. A no-op for any value already in-range.
+        pre_clamped = min(max(-slider_velocity_as_beat_length, lo), hi)
+        bpm_multiplier = float(np.clip(np.float32(pre_clamped), lo, hi)) / 100.0
     else:
         bpm_multiplier = 1.0
     return raw_beat_length * bpm_multiplier
