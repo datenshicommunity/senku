@@ -44,6 +44,31 @@ def test_mania_star_rating_and_pp(load_fixture, fixture_name, judgements, expect
     assert pp == pytest.approx(expected_pp, rel=1e-9)
 
 
+MOD_SR_CASES = [
+    # Cross-validated against the real .NET oracle (osu-tools PerformanceCalculator
+    # `simulate mania -m dt`/`-m ht`) on real production farm maps -- star_rating()
+    # takes clock_rate directly and had zero DT/HT coverage before this (only nomod
+    # cases above), flagged as a risk during the lets vanilla-pp migration since a
+    # cubic strain-to-pp curve amplifies any SR error. Confirmed exact match (rel
+    # 1e-9) for both maps at both clock rates -- the mod-adjusted clock_rate path
+    # itself was already correct; the discrepancy that surfaced during migration
+    # testing was in lets' own old formula (a flat SR*1.30 DT heuristic), not senku.
+    pytest.param("2155836.osu", 1.0, 7.580490198258658, id="2155836-nomod"),
+    pytest.param("2155836.osu", 1.5, 8.873911985786679, id="2155836-dt"),
+    pytest.param("2155836.osu", 0.75, 6.05345498072308, id="2155836-ht"),
+    pytest.param("3939032.osu", 1.0, 8.746183255936167, id="3939032-nomod"),
+    pytest.param("3939032.osu", 1.5, 9.918616086942205, id="3939032-dt"),
+    pytest.param("3939032.osu", 0.75, 7.0254872223371985, id="3939032-ht"),
+]
+
+
+@pytest.mark.parametrize("fixture_name, clock_rate, expected_sr", MOD_SR_CASES)
+def test_mania_star_rating_clock_rate_oracle(load_fixture, fixture_name, clock_rate, expected_sr):
+    beatmap = parse_osu_file(load_fixture(fixture_name))
+    sr = star_rating(beatmap, clock_rate=clock_rate)
+    assert sr == pytest.approx(expected_sr, rel=1e-9)
+
+
 def test_mania_nan_timestamp_is_dropped(load_fixture):
     """Regression test for a real "aspire"/troll beatmap: a mapper literally
     wrote "NaN" as a note's time field (float("NaN") parses successfully in
