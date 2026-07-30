@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "senku"
-version = "1.1.9"
+version = "1.1.10"
 description = "Another rhythm game performance calculator: pure-Python difficulty and performance (pp) calculation for a 4-mode circle-clicking rhythm game."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [
     { name = "datenshicommunity" },
