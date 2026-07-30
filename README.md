@@ -1,5 +1,9 @@
 # senku
 
+<p align="center">
+  <img src="assets/logo.jpg" alt="senku logo" width="200">
+</p>
+
 Another rhythm game performance calculator — pure Python, no external
 runtime dependencies beyond NumPy.
 

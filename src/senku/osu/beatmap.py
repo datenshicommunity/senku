@@ -14,7 +14,7 @@ from enum import Enum, auto
 from .._diffutils import apply_difficulty_mods, unchecked_int32
 from .._legacy_beat_length import TimingPoint, beat_length_at, precision_adjusted_beat_length
 from .._slider_events import generate_slider_events
-from .._slider_path import build_path, path_length, position_at
+from .._slider_path import build_path, path_length, position_at, slider_curve_would_throw
 
 _SLIDER_FLAG = 1 << 1
 _NEW_COMBO_FLAG = 1 << 2
@@ -315,6 +315,20 @@ def parse_osu_file(text: str, mods: frozenset[str] = frozenset(), difficulty_adj
                     slides_ok = False
             except ValueError:
                 slides_ok = False
+            if slides_ok:
+                # Each individual curve control point is parsed the same way
+                # (Parsing.ParseDouble, same 131072 limit) as the object's own
+                # x/y -- a troll map can bury one absurd point in an otherwise
+                # normal-looking curve (e.g. "...|450:3078|262367:262029|450:3078|...")
+                # which, left unchecked, blows up the geometric-fallback path
+                # length used when pixel_length is invalid (see path_length()
+                # below) even though the object itself would never survive
+                # the reference's per-point parsing.
+                _, curve_points = _parse_curve(fields[5])
+                if any(abs(px) > _MAX_COORDINATE_VALUE or abs(py) > _MAX_COORDINATE_VALUE for px, py in curve_points):
+                    slides_ok = False
+                if slides_ok and slider_curve_would_throw(fields[5]):
+                    slides_ok = False
             if not slides_ok:
                 continue
 
@@ -364,10 +378,18 @@ def _convert_slider(fields: list[str], head_x: float, head_y: float, start_time:
     pixel_length = max(0.0, float(fields[7]))
 
     path = build_path(curve_type, control_points, pixel_length)
-    # When the declared length is invalid (<=0), the reference falls back to
-    # the path's own geometric length (SliderPath.CalculatedDistance) rather
-    # than treating the slider as zero-length.
-    path_distance = pixel_length if pixel_length > 0 else path_length(path)
+    # Always derive path_distance from the actual built path, never the raw
+    # declared pixel_length directly: build_path()/_clamp_to_length() already
+    # trims/extends the geometric path to match the declared length in the
+    # normal case (so this equals pixel_length there anyway), but skips
+    # extension when the curve's final segment is degenerate (e.g. a "wiggle"
+    # slider whose control points end in a long run of exact duplicates,
+    # collapsing to a zero-length final segment) -- in that case the
+    # reference's own SliderPath.calculateLength() keeps the shorter
+    # geometric length rather than forcing the declared one, and using
+    # pixel_length directly here would silently disagree with the path
+    # object velocity/duration/ticks were already derived from.
+    path_distance = path_length(path)
 
     raw_beat_length, scroll_speed, generate_ticks = beat_length_at(timing_points, start_time)
     adjusted_beat_length = precision_adjusted_beat_length(raw_beat_length, scroll_speed, ruleset="osu")

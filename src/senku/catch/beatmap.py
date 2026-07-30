@@ -14,10 +14,18 @@ from .._diffutils import apply_difficulty_mods
 from .._legacy_beat_length import TimingPoint, beat_length_at, precision_adjusted_beat_length
 from .._legacy_random import LegacyRandom
 from .._slider_events import generate_slider_events
-from .._slider_path import build_path, path_length, position_at
+from .._slider_path import build_path, path_length, position_at, slider_curve_would_throw
 
 _SLIDER_FLAG = 1 << 1
 _SPINNER_FLAG = 1 << 3
+
+# Matches the reference decoder's Parsing.cs limits (see osu/beatmap.py's
+# identical fix): values past these throw OverflowException/FormatException
+# during line parsing, which the outer per-line try/catch turns into a
+# silent whole-object drop, not a clamp.
+_MAX_COORDINATE_VALUE = 131072.0
+_MAX_PARSE_VALUE = 2147483647.0
+_MAX_SLIDER_REPEATS = 9000
 
 BASE_SCORING_DISTANCE = 100.0
 CATCHER_BASE_SIZE = 106.75
@@ -148,8 +156,35 @@ def parse_osu_file(text: str, mods: frozenset[str] = frozenset()) -> CatchBeatma
         if len(fields) < 4:
             continue
         x = float(fields[0])
+        y = float(fields[1])  # not stored on CatchObject (catch is x-only), still needs the same validation
         start_time = float(fields[2])
         object_type = int(fields[3])
+
+        # See osu/beatmap.py's identical fix: a troll map can push an object's
+        # own coordinate/time, a slider's declared length/repeat count, or an
+        # individual curve control point past the reference's parse limits --
+        # the whole object gets dropped, not clamped.
+        if abs(x) > _MAX_COORDINATE_VALUE or abs(y) > _MAX_COORDINATE_VALUE or abs(start_time) > _MAX_PARSE_VALUE:
+            continue
+        if object_type & _SLIDER_FLAG:
+            if len(fields) < 8:
+                continue
+            slides_ok = True
+            try:
+                if abs(int(fields[6])) > _MAX_SLIDER_REPEATS:
+                    slides_ok = False
+                if abs(float(fields[7])) > _MAX_COORDINATE_VALUE:
+                    slides_ok = False
+            except ValueError:
+                slides_ok = False
+            if slides_ok:
+                _, curve_points = _parse_curve(fields[5])
+                if any(abs(px) > _MAX_COORDINATE_VALUE or abs(py) > _MAX_COORDINATE_VALUE for px, py in curve_points):
+                    slides_ok = False
+                if slides_ok and slider_curve_would_throw(fields[5]):
+                    slides_ok = False
+            if not slides_ok:
+                continue
 
         if object_type & _SPINNER_FLAG:
             # Bananas are excluded from difficulty/combo entirely, but still need
@@ -220,8 +255,10 @@ def _convert_slider(fields: list[str], head_x: float, start_time: float, timing_
     pixel_length = max(0.0, float(fields[7]))
 
     path = build_path(curve_type, control_points, pixel_length)
-    # authoritative length per the .osu file, unless invalid -- see osu/beatmap.py.
-    path_distance = pixel_length if pixel_length > 0 else path_length(path)
+    # Always derive from the actual built path -- see osu/beatmap.py's identical fix
+    # (a degenerate "wiggle"-slider final segment can make the real geometric
+    # length disagree with the raw declared pixel_length).
+    path_distance = path_length(path)
 
     raw_beat_length, scroll_speed, generate_ticks = beat_length_at(timing_points, start_time)
     adjusted_beat_length = precision_adjusted_beat_length(raw_beat_length, scroll_speed, ruleset="fruits")

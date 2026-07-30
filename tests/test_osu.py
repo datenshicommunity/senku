@@ -232,6 +232,29 @@ def test_osu_negative_slider_length_uses_geometric_distance(load_fixture):
     assert attributes.max_combo == 7
 
 
+def test_osu_troll_curve_marker_letters_drops_object(load_fixture):
+    """Regression test for a real "aspire"/troll beatmap (2568364) where one
+    hit object survived in senku but not in the reference: a slider curve
+    spelling out a word one letter-token at a time (e.g. "D|I|C|K|S|B|...",
+    each letter a bare pipe-separated token with no coordinate). senku's
+    curve parser silently treats any non-"x:y" token as "not a control
+    point" and moves on -- but the reference's ConvertHitObjectParser reads
+    each letter-first token as a new path-type marker, and two such markers
+    landing on the same point-index (i.e. no real coordinate between them)
+    make it build a zero-length control-point array and throw indexing into
+    it, which drops the WHOLE hit object via the per-line try/catch in
+    LegacyDecoder (see slider_curve_would_throw in _slider_path.py).
+    """
+    beatmap = parse_osu_file(load_fixture("std_troll_curve_marker_letters_edge_case.osu"))
+
+    assert len(beatmap.objects) == 2  # the 2 normal circles; the troll slider is dropped
+    assert all(o.kind.name == "CIRCLE" for o in beatmap.objects)
+
+    attributes = calculate(beatmap)
+    assert attributes.star_rating == pytest.approx(0.1547211959011954, rel=1e-9)
+    assert attributes.max_combo == 2
+
+
 def test_osu_extreme_bpm_timing_point_is_clamped(load_fixture):
     """Regression test for the residual gap left after the extreme-slider-length
     fix on beatmap 2536330 (star_rating went from 9,969,497 to a still-off

@@ -21,6 +21,40 @@ BEZIER_TOLERANCE = 0.25
 CIRCULAR_ARC_TOLERANCE = 0.1
 
 
+def slider_curve_would_throw(field5: str) -> bool:
+    """Mirror ConvertHitObjectParser.convertPathString's crash condition.
+
+    Each pipe-separated token whose first character is a letter starts a new
+    path-type segment; anything else is a coordinate. The reference tracks a
+    running point-index cursor that only advances on coordinate tokens (the
+    very first-ever marker is special-cased to get one implicit point). Each
+    segment's length is the gap between its own cursor value and the next
+    marker's (or the end, for the last one). If two markers land on the same
+    cursor value -- e.g. two path-type letters back to back with no
+    coordinate between them, as in troll curves that spell out words one
+    "point" at a time -- the reference builds a zero-length control-point
+    array and throws indexing into it, which drops the ENTIRE hit object via
+    the per-line try/catch in LegacyDecoder. Must be checked before treating
+    the slider as parseable, not just before extracting its points.
+    """
+    cursor = 0
+    marker_indices: list[int] = []
+    for token in field5.split("|"):
+        if token and token[0].isalpha():
+            marker_indices.append(cursor)
+            if cursor == 0:
+                cursor += 1
+        else:
+            cursor += 1
+    if not marker_indices:
+        return False
+    for i, start in enumerate(marker_indices):
+        end = marker_indices[i + 1] if i + 1 < len(marker_indices) else cursor
+        if end == start:
+            return True
+    return False
+
+
 def _bezier_is_flat_enough(points: list[tuple[float, float]]) -> bool:
     for i in range(1, len(points) - 1):
         ax = points[i - 1][0] - 2 * points[i][0] + points[i + 1][0]
@@ -69,7 +103,7 @@ def _bezier_approximate(points: list[tuple[float, float]], output: list[tuple[fl
         output.append((px, py))
 
 
-_MAX_BEZIER_CONTROL_POINTS = 300
+_MAX_BEZIER_CONTROL_POINTS = 5000
 
 
 def _bezier_to_piecewise_linear(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
@@ -80,12 +114,20 @@ def _bezier_to_piecewise_linear(points: list[tuple[float, float]]) -> list[tuple
         # De Casteljau subdivision is O(n^2) per call, and unlike the
         # subdivision-count cap below, that cost is paid on the FIRST call
         # regardless of how few times we recurse -- a troll slider with tens
-        # or hundreds of thousands of control points (real example: a single
-        # segment with 147,545 points) makes even one subdivide call take
-        # tens of seconds. No normal map's slider curve carries anywhere
-        # near this many meaningfully-distinct control points, so evenly
-        # downsampling (keeping the endpoints) bounds the worst case without
-        # affecting any realistic beatmap's output.
+        # or hundreds of thousands of control points in a single unsplit
+        # segment makes even one subdivide call take tens of seconds.
+        # Genuinely pathological single segments this large are rare in
+        # practice: real "wiggle" troll sliders are built from long runs of
+        # duplicate points, which split_bezier_segments breaks into many
+        # small segments well under this cap on its own. This downsampling
+        # only kicks in for a single segment past 5000 real, distinct
+        # control points -- verified against a real (non-troll) beatmap
+        # with a legitimate 900-point single bezier segment that this cap
+        # must NOT downsample: at the old 300 cap, downsampling silently
+        # changed that slider's geometric path length by >2x (1624 vs the
+        # true ~720.4), flipping a tick-count decision and throwing off
+        # max_combo/star_rating. Evenly downsampling (keeping the endpoints)
+        # bounds the true pathological case without corrupting this one.
         step = (len(points) - 1) / (_MAX_BEZIER_CONTROL_POINTS - 1)
         points = [points[round(i * step)] for i in range(_MAX_BEZIER_CONTROL_POINTS)]
 
@@ -235,12 +277,26 @@ def path_to_piecewise_linear(curve_type: str, control_points: list[tuple[float, 
 def split_bezier_segments(control_points: list[tuple[float, float]]) -> list[list[tuple[float, float]]]:
     """Splits a raw control-point list on consecutive duplicate points --
     the legacy .osu format's way of encoding multiple independent Bezier
-    segments within one slider."""
+    segments within one slider.
+
+    The reference's split rule explicitly excludes the very LAST point of
+    the whole array from ever starting a new segment (ConvertHitObjectParser:
+    the split condition is gated on the index not being the final one) --
+    without that exclusion, a curve ending in a long run of exact-duplicate
+    points (a "wiggle"/vibrato slider) loses its true final point to an
+    abandoned 1-point group, turning a genuinely zero-length final segment
+    into a spurious ~1px one. That spurious segment then feeds a real
+    (non-zero) direction into _clamp_to_length's declared-length extension,
+    which should have been skipped entirely for a truly degenerate tail --
+    producing a wildly wrong extended endpoint instead of the correct
+    (shorter) geometric length the reference keeps in that case.
+    """
     segments: list[list[tuple[float, float]]] = []
     current: list[tuple[float, float]] = []
+    last_index = len(control_points) - 1
 
     for i, point in enumerate(control_points):
-        if current and point == current[-1]:
+        if current and point == current[-1] and i != last_index:
             if len(current) > 1:
                 segments.append(current)
             current = [point]
