@@ -69,6 +69,46 @@ CASES = [
     pytest.param("5127976.osu", set(), 1.0, False, False, {"MG"},
                  dict(n300=100, n100=6, n50=3, n_miss=3), 130,
                  1.6991736660409238, 2.8028787016015304, id="MG"),
+    # Real production "aspire"/farm maps flagged for disproportionate relax PP on datenshi
+    # (lets' own relax adapter gives these ~20-40x senku/oracle's number -- a lets-side bug,
+    # not senku's; tracked separately). Added here as regression coverage of senku's RX
+    # handling at real high-star-rating content, not just the one modest SR~1.8 case above.
+    # Cross-validated against real .NET PerformanceCalculator: sr=6.818418495931014, pp=361.545073470113.
+    pytest.param("5381367.osu", set(), 1.0, False, False, {"RX"},
+                 dict(n300=1096, n100=0, n50=0, n_miss=0), 1372,
+                 6.818412378284261, 361.5440992252285, id="RX-farm-5381367"),
+    # Cross-validated against real .NET PerformanceCalculator: sr=6.957481669319994, pp=382.62159677220853.
+    pytest.param("5645843.osu", set(), 1.0, False, False, {"RX"},
+                 dict(n300=1075, n100=0, n50=0, n_miss=0), 1420,
+                 6.957506312712217, 382.6256706536426, id="RX-farm-5645843"),
+    # Cross-validated against real .NET PerformanceCalculator: sr=3.899620680622358, pp=61.81302391580813.
+    pytest.param("4601031.osu", set(), 1.0, False, False, {"RX"},
+                 dict(n300=528, n100=0, n50=0, n_miss=0), 733,
+                 3.8996204394025114, 61.81301244465943, id="RX-farm-4601031"),
+    # Cross-validated against real .NET PerformanceCalculator: sr=3.684146027279857, pp=52.12214200126915.
+    pytest.param("4601030.osu", set(), 1.0, False, False, {"RX"},
+                 dict(n300=528, n100=0, n50=0, n_miss=0), 733,
+                 3.684145802091596, 52.122132443119604, id="RX-farm-4601030"),
+    # Cross-validated against real .NET PerformanceCalculator: sr=2.8796857228586723, pp=23.790395459369638.
+    pytest.param("5129554.osu", set(), 1.0, False, False, {"RX"},
+                 dict(n300=264, n100=0, n50=0, n_miss=0), 272,
+                 2.879685493086421, 23.790389764699256, id="RX-farm-5129554"),
+    # Cross-validated against real .NET PerformanceCalculator: sr=4.704508142838955, pp=107.8333281964623.
+    pytest.param("5129558.osu", set(), 1.0, False, False, {"RX"},
+                 dict(n300=490, n100=0, n50=0, n_miss=0), 497,
+                 4.704507990607055, 107.83331773064691, id="RX-farm-5129558"),
+    # Cross-validated against real .NET PerformanceCalculator: sr=4.411759485870838, pp=95.97621199597597.
+    pytest.param("5029221.osu", set(), 1.0, False, False, {"RX"},
+                 dict(n300=960, n100=0, n50=0, n_miss=0), 1040,
+                 4.411760951886578, 95.97630770859836, id="RX-farm-5029221"),
+    # Cross-validated against real .NET PerformanceCalculator: sr=3.8357943599612354, pp=69.57074308382603.
+    pytest.param("5424081.osu", set(), 1.0, False, False, {"RX"},
+                 dict(n300=1618, n100=0, n50=0, n_miss=0), 2133,
+                 3.8357945710792465, 69.57075457490889, id="RX-farm-5424081"),
+    # Cross-validated against real .NET PerformanceCalculator: sr=4.474876154224739, pp=95.35785177270066.
+    pytest.param("5422098.osu", set(), 1.0, False, False, {"RX"},
+                 dict(n300=653, n100=0, n50=0, n_miss=0), 845,
+                 4.474876879578805, 95.35789815792502, id="RX-farm-5422098"),
 ]
 
 

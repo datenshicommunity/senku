@@ -46,6 +46,29 @@ CASES = [
     ),
 ]
 
+# Real production "farm" maps flagged for disproportionate relax std PP on datenshi (lets'
+# own relax adapter gives wildly higher numbers than senku/oracle -- a lets-side bug, tracked
+# separately). Added as regression coverage of senku's taiko RX handling (is_relax=True) on
+# real content beyond the existing pinned test_taiko_relax case.
+RX_CASES = [
+    # Cross-validated against real .NET PerformanceCalculator: sr=4.662782825336713, pp=303.585859416989.
+    pytest.param("3557681.osu", dict(n_great=658, n_ok=0, n_meh=0, n_miss=0),
+                 4.662782825336713, 303.5858594169889, id="3557681-RX"),
+    # Cross-validated against real .NET PerformanceCalculator: sr=4.042986521844872, pp=260.8221828928937.
+    pytest.param("178067.osu", dict(n_great=1788, n_ok=0, n_meh=0, n_miss=0),
+                 4.042986521844872, 260.82218289289386, id="178067-RX"),
+]
+
+
+@pytest.mark.parametrize("fixture_name, judgements, expected_sr, expected_pp", RX_CASES)
+def test_taiko_relax_real_farm_maps(load_fixture, fixture_name, judgements, expected_sr, expected_pp):
+    beatmap = parse_osu_file(load_fixture(fixture_name), mods=frozenset())
+    attributes = calculate(beatmap, clock_rate=1.0, is_relax=True)
+    result = calculate_pp(attributes, TaikoJudgements(**judgements), overall_difficulty=beatmap.overall_difficulty, clock_rate=1.0)
+
+    assert attributes.star_rating == pytest.approx(expected_sr, rel=1e-9)
+    assert result["total"] == pytest.approx(expected_pp, rel=1e-9)
+
 
 @pytest.mark.parametrize("fixture_name, mods, is_convert, judgements, expected_sr, expected_pp", CASES)
 def test_taiko_star_rating_and_pp(load_fixture, fixture_name, mods, is_convert, judgements, expected_sr, expected_pp):
