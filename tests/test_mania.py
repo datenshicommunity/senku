@@ -69,6 +69,39 @@ def test_mania_star_rating_clock_rate_oracle(load_fixture, fixture_name, clock_r
     assert sr == pytest.approx(expected_sr, rel=1e-9)
 
 
+DT_PP_LIVE_ORACLE_CASES = [
+    # Cross-validated against a real live score from the official server
+    # (osu.ppy.sh) rather than an offline reference calculator -- stronger
+    # evidence than MOD_SR_CASES above, and the first case covering the
+    # full SR->PP chain with a mod applied, not just star_rating() in
+    # isolation. Score id 7182497814 (user "sdota"), FREEDOM DiVE [5K Easy]
+    # (bid 4692835, ranked), mods=[DT]. Fixture's md5
+    # (af3389ee6a661c67679686c885cc011a) matches the score's recorded
+    # beatmap checksum exactly, confirming it's the exact file that score
+    # was set on. Official API reports SR 1.00755 (nomod) and PP 7.11637
+    # (DT) -- both rounded to 5 decimals for display; senku matches to full
+    # precision (rel 1e-9 against its own more precise computation).
+    pytest.param(
+        "4692835.osu",
+        1.5,
+        dict(n_perfect=67, n_great=47, n_good=10, n_ok=0, n_meh=0, n_miss=0),
+        1.239689910878788,
+        7.116370653741202,
+        id="4692835-dt-live-oracle",
+    ),
+]
+
+
+@pytest.mark.parametrize("fixture_name, clock_rate, judgements, expected_sr, expected_pp", DT_PP_LIVE_ORACLE_CASES)
+def test_mania_dt_pp_matches_live_oracle(load_fixture, fixture_name, clock_rate, judgements, expected_sr, expected_pp):
+    beatmap = parse_osu_file(load_fixture(fixture_name))
+    sr = star_rating(beatmap, clock_rate=clock_rate)
+    pp = calculate_pp(sr, ManiaJudgements(**judgements))
+
+    assert sr == pytest.approx(expected_sr, rel=1e-9)
+    assert pp == pytest.approx(expected_pp, rel=1e-9)
+
+
 def test_mania_nan_timestamp_is_dropped(load_fixture):
     """Regression test for a real "aspire"/troll beatmap: a mapper literally
     wrote "NaN" as a note's time field (float("NaN") parses successfully in
