@@ -93,6 +93,16 @@ def _build_movement_objects(beatmap: CatchBeatmap, clock_rate: float) -> list[_M
 
 
 def _movement_difficulty(objects: list[_MovementObject], index: int, is_relax: bool = False) -> float:
+    # is_relax is accepted (mirrors osu/taiko's signatures) but intentionally a
+    # no-op here -- verified against the official client source (ppy/osu):
+    # CatchDifficultyCalculator.cs and CatchPerformanceCalculator.cs contain zero
+    # relax-mod-aware code (unlike osu's Aim/Speed/Flashlight/Reading skills and
+    # OsuPerformanceCalculator, or taiko's TaikoDifficultyCalculator, which all do).
+    # CatchModRelax only hooks CatchScoreMultiplierCalculator (a legacy scoring
+    # multiplier, 0.1x) and gameplay input remapping -- never difficulty/pp. A
+    # prior version of this function dampened movement strain for is_relax=True
+    # as a first-guess heuristic (see git history / CHANGELOG); removed once this
+    # was checked directly against the client source rather than assumed.
     current = objects[index]
     last = objects[index - 1] if index >= 1 else None
     last_last = objects[index - 2] if index >= 2 else None
@@ -104,11 +114,7 @@ def _movement_difficulty(objects: list[_MovementObject], index: int, is_relax: b
     sqrt_strain = math.sqrt(weighted_strain_time)
 
     if abs(current.distance_moved) > 0.1:
-        # Direction-change bonus prices the cost of reversing a held-key discrete
-        # movement commitment -- Relax drives the catcher via a stateless absolute
-        # mouse-position assignment (no direction/momentum state to reverse), so
-        # this mechanic doesn't apply at all under RX, not just less.
-        if (not is_relax and index >= 1 and last is not None and abs(last.distance_moved) > 0.1
+        if (index >= 1 and last is not None and abs(last.distance_moved) > 0.1
                 and _sign(current.distance_moved) != _sign(last.distance_moved)):
             bonus_factor = min(50.0, abs(current.distance_moved)) / 50
             antiflow_factor = max(min(70.0, abs(last.distance_moved)) / 70, 0.38)
@@ -160,17 +166,6 @@ def _movement_difficulty(objects: list[_MovementObject], index: int, is_relax: b
         and last.strain_time == last_last.strain_time
     ):
         distance_addition = 0.0
-
-    if is_relax:
-        # Continuous mouse positioning still costs some residual hand-eye-tracking
-        # effort, so this is dampened rather than zeroed -- reuses taiko's own
-        # established RX dampening factor (`sp /= 1.5` in taiko/difficulty.py) rather
-        # than inventing an unvalidated constant. ABSOLUTE_PLAYER_POSITIONING_ERROR
-        # is deliberately left untouched: it models reaction-time/misjudgment safety
-        # margin, which a mouse doesn't eliminate, and touching it too would
-        # double-count the same "no movement momentum to correct" fact already
-        # captured by the direction-change removal and this dampening.
-        distance_addition /= 1.5
 
     return distance_addition / weighted_strain_time
 
