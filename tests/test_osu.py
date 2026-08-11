@@ -131,6 +131,64 @@ def test_osu_star_rating_and_pp(load_fixture, fixture_name, beatmap_mods, clock_
     assert pp == pytest.approx(expected_pp, rel=1e-9)
 
 
+def test_osu_relax_speed_retention(load_fixture):
+    """relax_speed_retention (default 0.0) is a senku-only knob with no real-osu!
+    equivalent -- real RX always zeroes speed entirely, so there is no .NET oracle
+    to cross-validate against here. These values are senku's own pinned output;
+    the point of this test is the *relationships* between them, not an external
+    ground truth:
+      - retention=0.0 (the default) must stay byte-for-byte identical to plain
+        {"RX"} with no retention arg at all -- regression coverage for the
+        "RX" id case in CASES above, which pins sr=1.794358362369258/pp=2.488885012657386.
+      - retention scales speed_difficulty (and therefore pp) up monotonically
+        without changing aim_difficulty, and without needing "RX" present at all
+        to be a no-op (retention only ever matters together with "RX").
+      - speed_note_count/speed_difficult_strain_count/speed_top_weighted_slider_factor
+        are unaffected by retention -- they're ratios computed from the same
+        underlying (unscaled) strain trajectory regardless of what final scale
+        gets applied to speed_difficulty, so RX-with-retention doesn't corrupt
+        the "how speed-heavy is this map, structurally" companion stats that
+        acc/miss handling elsewhere reads.
+    """
+    beatmap = parse_osu_file(load_fixture("5127976.osu"))
+    j = OsuJudgements(n300=100, n100=6, n50=3, n_miss=3)
+
+    def pp_at(mods, retention):
+        attributes = calculate(beatmap, mods=frozenset(mods), relax_speed_retention=retention)
+        pp = calculate_pp(attributes, j, score_max_combo=130, approach_rate=beatmap.approach_rate,
+                           overall_difficulty_raw=beatmap.overall_difficulty, mods=frozenset(mods),
+                           drain_rate=beatmap.drain_rate)
+        return attributes, pp
+
+    rx_default, pp_rx_default = pp_at({"RX"}, 0.0)
+    rx_explicit_zero, pp_rx_explicit_zero = pp_at({"RX"}, 0.0)
+    rx_half, pp_rx_half = pp_at({"RX"}, 0.5)
+    rx_full, pp_rx_full = pp_at({"RX"}, 1.0)
+    vanilla, pp_vanilla_ignored = pp_at(set(), 0.5)  # retention must no-op without "RX"
+
+    # default (no retention arg used anywhere else in this file) reproduces the pinned RX case exactly.
+    assert rx_default.star_rating == pytest.approx(1.794358362369258, rel=1e-9)
+    assert pp_rx_default == pytest.approx(2.488885012657386, rel=1e-9)
+    assert rx_default.speed_difficulty == 0.0
+    assert rx_explicit_zero.speed_difficulty == 0.0
+
+    # monotonic in retention; aim_difficulty untouched by it.
+    assert 0.0 < rx_half.speed_difficulty < rx_full.speed_difficulty
+    assert pp_rx_default < pp_rx_half < pp_rx_full
+    assert rx_default.aim_difficulty == rx_half.aim_difficulty == rx_full.aim_difficulty
+
+    # companion stats are scale-invariant ratios -- identical across every retention value.
+    for attrs in (rx_default, rx_half, rx_full):
+        assert attrs.speed_note_count == pytest.approx(rx_full.speed_note_count, rel=1e-12)
+        assert attrs.speed_difficult_strain_count == pytest.approx(rx_full.speed_difficult_strain_count, rel=1e-12)
+        assert attrs.speed_top_weighted_slider_factor == pytest.approx(rx_full.speed_top_weighted_slider_factor, rel=1e-12)
+
+    # retention is inert without "RX" in mods.
+    baseline_vanilla = calculate(beatmap, mods=frozenset())
+    assert vanilla.speed_difficulty == pytest.approx(baseline_vanilla.speed_difficulty, rel=1e-12)
+    assert vanilla.star_rating == pytest.approx(baseline_vanilla.star_rating, rel=1e-12)
+
+
 def test_osu_legacy_score_simulator_broken_combo(load_fixture):
     """A real DT score with a broken combo (112/160) and a known legacy total
     score (370467) -- exercises the ScoreV1 simulator's score-based miss

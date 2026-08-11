@@ -238,9 +238,15 @@ class SpeedSkill:
         return difficulty
 
     def _object_difficulty_of(self, index: int) -> float:
-        if "RX" in self.mods:
-            return 0.0
-
+        # Always computed genuinely (never short-circuited for RX here) -- the RX
+        # speed-retention scale is applied once, downstream, in difficulty.calculate()
+        # against the final speed_rating scalar. Applying it here per-object instead
+        # would be mathematically equivalent (this recursion is linear in its inputs)
+        # but would make speed_note_count/speed_difficult_strain_count/
+        # speed_top_weighted_slider_factor computed from an already-scaled trajectory
+        # instead of the ratio-invariant raw one -- harmless either way since those are
+        # pure ratios, but downstream scaling keeps this function's only concern being
+        # "what is the real tapping difficulty here", not mod policy.
         skill_multiplier = 1.16
         do = self.dobjs[index]
 
