@@ -67,7 +67,8 @@ def _calculate_rating(difficulty_value: float) -> float:
 
 
 def calculate(beatmap: OsuBeatmap, clock_rate: float = 1.0, hidden: bool = False, flashlight: bool = False,
-              mods: frozenset[str] = frozenset(), magnetised_strength: float = 0.5, deflate_start_scale: float = 2.0) -> OsuDifficultyAttributes:
+              mods: frozenset[str] = frozenset(), magnetised_strength: float = 0.5, deflate_start_scale: float = 2.0,
+              relax_speed_retention: float = 0.0) -> OsuDifficultyAttributes:
     dobjs = build_difficulty_hit_objects(beatmap, clock_rate, hidden)
 
     aim = AimSkill(dobjs, include_sliders=True, mods=mods, magnetised_strength=magnetised_strength)
@@ -116,6 +117,15 @@ def calculate(beatmap: OsuBeatmap, clock_rate: float = 1.0, hidden: bool = False
     slider_factor = (aim_no_sliders_rating / aim_rating) if aim_difficulty_value > 0 else 1.0
 
     speed_rating = _calculate_rating(speed_difficulty_value)
+    if "RX" in mods:
+        # Real official RX zeroes speed entirely (speed_rating would otherwise be
+        # computed from the exact same genuine tapping-difficulty pass vanilla uses --
+        # see speed.py, which no longer short-circuits on "RX"). relax_speed_retention
+        # defaults to 0.0, so this is a no-op unless a caller explicitly opts in.
+        # speed_note_count/speed_difficult_strain_count/speed_top_weighted_slider_factor
+        # are computed above from the pre-scaling speed_difficulty_value and stay
+        # correct regardless of retention, since they're ratios of same-scaled values.
+        speed_rating *= relax_speed_retention
     reading_rating = _calculate_rating(reading_difficulty_value)
 
     flashlight_rating = _calculate_rating(flashlight_skill.difficulty_value()) if flashlight_skill is not None else 0.0

@@ -304,7 +304,13 @@ def _calculate_traceable_bonus(approach_rate: float, slider_factor: float = 1.0)
 
 def _compute_speed_value(attributes: OsuDifficultyAttributes, imperfect_hits: int, effective_miss_count: float,
                           speed_estimated_slider_breaks: float, speed_deviation: float | None, mods: frozenset[str] = frozenset()) -> float:
-    if "RX" in mods or speed_deviation is None:
+    # Was "if 'RX' in mods or speed_deviation is None: return 0.0" -- gated on the mod
+    # flag directly. Now gated on the attribute itself: real RX (relax_speed_retention
+    # defaulted to 0.0 in difficulty.calculate()) already produces attributes.speed_difficulty
+    # == 0.0 for RX, so this is behaviourally identical for every existing caller, but also
+    # correctly handles a caller that opted into relax_speed_retention > 0 (nonzero speed
+    # should count), and any other 0-speed-difficulty case without relying on mods.
+    if attributes.speed_difficulty <= 0 or speed_deviation is None:
         return 0.0
 
     speed_value = difficulty_to_performance(attributes.speed_difficulty)
