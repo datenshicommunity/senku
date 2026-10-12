@@ -13,6 +13,7 @@ from .._diffutils import logistic, logistic_full, milliseconds_to_bpm, norm, rev
 from .._variable_strain_skill import VariableLengthStrainSkill
 from .beatmap import OsuObjectKind
 from .preprocessing import NORMALISED_DIAMETER, NORMALISED_RADIUS, OsuDifficultyHitObject, previous
+from .._diffutils import hypot
 
 _RADIANS_PER_DEGREE = math.pi / 180.0
 
@@ -138,7 +139,7 @@ def snap_evaluate(dobjs: list[OsuDifficultyHitObject], index: int, with_slider_t
         wide_angle_bonus *= min(wide_angle_curr_velocity, wide_angle_prev_velocity)
 
         if last2 is not None:
-            distance = math.hypot(
+            distance = hypot(
                 last2.obj.stacked_position[0] - last.obj.stacked_position[0],
                 last2.obj.stacked_position[1] - last.obj.stacked_position[1],
             )
@@ -215,7 +216,7 @@ def agility_evaluate(dobjs: list[OsuDifficultyHitObject], index: int) -> float:
 
 def _calculate_overlap_factor(first: OsuDifficultyHitObject, second: OsuDifficultyHitObject) -> float:
     object_radius = first.obj.radius
-    distance = math.hypot(
+    distance = hypot(
         first.obj.stacked_position[0] - second.obj.stacked_position[0],
         first.obj.stacked_position[1] - second.obj.stacked_position[1],
     )
