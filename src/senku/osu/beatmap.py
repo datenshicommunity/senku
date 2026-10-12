@@ -15,6 +15,7 @@ from .._diffutils import apply_difficulty_mods, unchecked_int32
 from .._legacy_beat_length import TimingPoint, beat_length_at, precision_adjusted_beat_length
 from .._slider_events import generate_slider_events
 from .._slider_path import build_path, path_length, position_at, slider_curve_would_throw
+from .._diffutils import hypot
 
 _SLIDER_FLAG = 1 << 1
 _NEW_COMBO_FLAG = 1 << 2
@@ -432,7 +433,7 @@ def _convert_slider(fields: list[str], head_x: float, head_y: float, start_time:
 
 
 def _distance(a: tuple[float, float], b: tuple[float, float]) -> float:
-    return math.hypot(a[0] - b[0], a[1] - b[1])
+    return hypot(a[0] - b[0], a[1] - b[1])
 
 
 def _stack_threshold(beatmap: OsuBeatmap, obj: OsuObject) -> float:

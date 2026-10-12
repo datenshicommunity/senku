@@ -15,6 +15,19 @@ import numpy as np
 SQRT2 = 1.4142135623730950
 
 
+def hypot(x: float, y: float) -> float:
+    """Euclidean length as sqrt(x*x + y*y).
+
+    Not math.hypot: CPython changed math.hypot's algorithm in 3.10, so the same input can differ
+    in the last bit between Python versions. Distances feed hard thresholds in the strain
+    calculation (slider path lengths, jump distances, lazy cursor movement), and a last-bit
+    difference was enough to flip some of them: identical senku and numpy gave different star
+    ratings on Python 3.9 vs 3.10 for most osu!standard maps. Plain arithmetic is identical on
+    every version, and is also what the reference calculator does for vector lengths.
+    """
+    return math.sqrt(x * x + y * y)
+
+
 def apply_difficulty_mods(circle_size: float, approach_rate: float, overall_difficulty: float, drain_rate: float,
                            mods: frozenset[str]) -> tuple[float, float, float, float]:
     """HR/EZ CS/AR/OD/HP scaling shared across modes that carry these four stats.

@@ -11,6 +11,7 @@ from .._diffutils import reverse_lerp
 from .._strain_skill import StrainDecaySkill
 from .beatmap import OsuObjectKind
 from .preprocessing import NORMALISED_RADIUS, OsuDifficultyHitObject, previous
+from .._diffutils import hypot
 
 
 def flashlight_evaluate(dobjs: list[OsuDifficultyHitObject], index: int, hidden: bool) -> float:
@@ -41,7 +42,7 @@ def flashlight_evaluate(dobjs: list[OsuDifficultyHitObject], index: int, hidden:
         cumulative_strain_time += last_obj.adjusted_delta_time
 
         if current_obj.obj.kind != OsuObjectKind.SPINNER:
-            jump_distance = math.hypot(
+            jump_distance = hypot(
                 current.obj.stacked_position[0] - current_obj.obj.stacked_end_position[0],
                 current.obj.stacked_position[1] - current_obj.obj.stacked_end_position[1],
             )

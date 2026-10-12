@@ -9,6 +9,7 @@ import math
 from dataclasses import dataclass, field
 
 from .beatmap import PREEMPT_MIN, NestedKind, OsuBeatmap, OsuObject, OsuObjectKind
+from .._diffutils import hypot
 
 NORMALISED_RADIUS = 50.0
 NORMALISED_DIAMETER = NORMALISED_RADIUS * 2
@@ -101,7 +102,7 @@ def next_obj(dobjs: list["OsuDifficultyHitObject"], index: int, n: int = 0) -> "
 
 
 def _dist(a: tuple[float, float], b: tuple[float, float]) -> float:
-    return math.hypot(a[0] - b[0], a[1] - b[1])
+    return hypot(a[0] - b[0], a[1] - b[1])
 
 
 def _sub(a: tuple[float, float], b: tuple[float, float]) -> tuple[float, float]:
@@ -210,15 +211,15 @@ def _compute_slider_cursor_position(do: OsuDifficultyHitObject) -> None:
         curr_pos = (curr_movement_obj.position[0] + ox2, curr_movement_obj.position[1] + oy2)
 
         curr_movement = _sub(curr_pos, curr_cursor_position)
-        curr_movement_length = scaling_factor * math.hypot(*curr_movement)
+        curr_movement_length = scaling_factor * hypot(*curr_movement)
 
         required_movement = ASSUMED_SLIDER_RADIUS
 
         if i == len(nested_objects) - 1:
             lazy_movement = _sub(do.lazy_end_position, curr_cursor_position)
-            if math.hypot(*lazy_movement) < math.hypot(*curr_movement):
+            if hypot(*lazy_movement) < hypot(*curr_movement):
                 curr_movement = lazy_movement
-            curr_movement_length = scaling_factor * math.hypot(*curr_movement)
+            curr_movement_length = scaling_factor * hypot(*curr_movement)
         elif curr_movement_obj.kind == NestedKind.REPEAT:
             required_movement = NORMALISED_RADIUS
 

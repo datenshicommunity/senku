@@ -16,6 +16,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
+from ._diffutils import hypot
 
 BEZIER_TOLERANCE = 0.25
 CIRCULAR_ARC_TOLERANCE = 0.1
@@ -206,7 +207,7 @@ def _circular_arc_properties(p0, p1, p2):
     centre_x = (a_sq * (by - cy) + b_sq * (cy - ay) + c_sq * (ay - by)) / d
     centre_y = (a_sq * (cx - bx) + b_sq * (ax - cx) + c_sq * (bx - ax)) / d
 
-    radius = math.hypot(ax - centre_x, ay - centre_y)
+    radius = hypot(ax - centre_x, ay - centre_y)
 
     theta_start = math.atan2(ay - centre_y, ax - centre_x)
     theta_mid = math.atan2(by - centre_y, bx - centre_x)
@@ -332,7 +333,7 @@ def build_path(curve_type: str, control_points: list[tuple[float, float]], expec
 def _cumulative_lengths(path: list[tuple[float, float]]) -> list[float]:
     cumulative = [0.0]
     for i in range(1, len(path)):
-        d = math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1])
+        d = hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1])
         cumulative.append(cumulative[-1] + d)
     return cumulative
 
@@ -373,7 +374,7 @@ def _clamp_to_length(path: list[tuple[float, float]], expected_length: float) ->
         if len(path) >= 2:
             dx = path[-1][0] - path[-2][0]
             dy = path[-1][1] - path[-2][1]
-            seg_len = math.hypot(dx, dy)
+            seg_len = hypot(dx, dy)
             if seg_len > 0:
                 extra = expected_length - total
                 x = path[-1][0] + dx / seg_len * extra
